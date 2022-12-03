@@ -7,13 +7,15 @@
 #include "chunk.h"
 
 void build_chunk(lox_chunk *chunk) {
-    chunk->count = 0;
     chunk->capacity = 0;
+    chunk->count = 0;
     chunk->code = NULL;
+    build_value_array(&chunk->constants);
 }
 
 void purge_chunk(lox_chunk *chunk) {
     FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
+    purge_value_array(&chunk->constants);
     build_chunk(chunk);
 }
 
@@ -26,4 +28,9 @@ void write_chunk(lox_chunk *chunk, uint8_t byte) {
 
     chunk->code[chunk->count] = byte;
     chunk->count++;
+}
+
+int add_constant(lox_chunk *chunk, lox_value constant) {
+    write_value_array(&chunk->constants, constant);
+    return chunk->constants.count - 1;
 }
