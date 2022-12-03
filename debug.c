@@ -17,7 +17,7 @@ static int constant_instruction(const char *name, lox_chunk *chunk, int offset) 
     uint8_t index = chunk->code[offset + 1];
     printf("%-16s %4d '", name, index);
     print_value(chunk->constants.values[index]);
-    printf("\n");
+    printf("'\n");
     return offset + 2;
 }
 
@@ -28,6 +28,13 @@ static int simple_instruction(const char *name, int offset) {
 
 int  disassemble_instruction(lox_chunk *chunk, int offset) {
     printf("%04d ", offset);
+
+    if (offset > 0 && chunk->line_numbers[offset] == chunk->line_numbers[offset - 1]) {
+        printf("%4s ", "|");
+    } else {
+        printf("%4d ", chunk->line_numbers[offset]);
+    }
+
     uint8_t instruction = chunk->code[offset];
     switch (instruction) {
         case OP_CONSTANT:
