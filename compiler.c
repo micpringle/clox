@@ -44,6 +44,10 @@ typedef struct {
 lox_parser parser;
 lox_chunk *compiling_chunk;
 
+static void parse_expression();
+static lox_parse_rule *lookup_rule(lox_token_type type);
+static void parse_precedence(lox_precedence precedence);
+
 static lox_chunk *current_chunk() {
     return compiling_chunk;
 }
@@ -122,11 +126,6 @@ static void finish_compilation() {
     }
 #endif
 }
-
-// Forward declarations
-static void parse_expression();
-static lox_parse_rule *lookup_rule(lox_token_type type);
-static void parse_precedence(lox_precedence precedence);
 
 static void parse_binary() {
     lox_token_type operator = parser.previous_token.type;
