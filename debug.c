@@ -2,11 +2,11 @@
 // Created by Mic Pringle on 03/12/2022.
 //
 
-#include <stdio.h>
 #include "debug.h"
 #include "value.h"
+#include <stdio.h>
 
-void disassemble_chunk(lox_chunk *chunk, const char* name) {
+void disassemble_chunk(lox_chunk *chunk, const char *name) {
     printf("-- %s --\n", name);
     for (int offset = 0; offset < chunk->count;) {
         offset = disassemble_instruction(chunk, offset);
@@ -26,7 +26,7 @@ static int simple_instruction(const char *name, int offset) {
     return offset + 1;
 }
 
-int  disassemble_instruction(lox_chunk *chunk, int offset) {
+int disassemble_instruction(lox_chunk *chunk, int offset) {
     printf("%04d ", offset);
 
     if (offset > 0 && chunk->line_numbers[offset] == chunk->line_numbers[offset - 1]) {

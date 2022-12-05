@@ -1,8 +1,8 @@
+#include "common.h"
+#include "vm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "common.h"
-#include "vm.h"
 
 static void run_repl() {
     char line[1024];
@@ -16,7 +16,7 @@ static void run_repl() {
     }
 }
 
-static char* read_file(const char *path) {
+static char *read_file(const char *path) {
     FILE *file = fopen(path, "rb");
     if (file == NULL) {
         fprintf(stderr, "Couldn't open file: \"%s\".\n", path);
@@ -27,7 +27,7 @@ static char* read_file(const char *path) {
     size_t file_size = ftell(file);
     rewind(file);
 
-    char *buffer = (char *)malloc(file_size + 1);
+    char *buffer = (char *) malloc(file_size + 1);
     if (buffer == NULL) {
         fprintf(stderr, "Not enough memory to read file: \"%s\".\n", path);
         exit(74);
@@ -53,7 +53,7 @@ static void run_script(const char *path) {
     if (result == INTERPRET_RUNTIME_ERROR) exit(70);
 }
 
-int main(int argc, const char* argv[]) {
+int main(int argc, const char *argv[]) {
     build_virtual_machine();
 
     if (argc == 1) {

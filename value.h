@@ -12,7 +12,7 @@ typedef double lox_value;
 typedef struct {
     int capacity;
     int count;
-    lox_value* values;
+    lox_value *values;
 } lox_value_array;
 
 void build_value_array(lox_value_array *array);

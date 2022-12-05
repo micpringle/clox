@@ -2,11 +2,11 @@
 // Created by Mic Pringle on 05/12/2022.
 //
 
+#include "compiler.h"
+#include "common.h"
+#include "scanner.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "common.h"
-#include "compiler.h"
-#include "scanner.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -107,7 +107,7 @@ static uint8_t make_constant(lox_value value) {
         error("Too many constants in a single chunk.");
         return 0;
     }
-    return (u_int8_t)index;
+    return (u_int8_t) index;
 }
 
 static void emit_constant(lox_value value) {
@@ -125,13 +125,13 @@ static void finish_compilation() {
 
 // Forward declarations
 static void parse_expression();
-static lox_parse_rule*lookup_rule(lox_token_type type);
+static lox_parse_rule *lookup_rule(lox_token_type type);
 static void parse_precedence(lox_precedence precedence);
 
 static void parse_binary() {
     lox_token_type operator = parser.previous_token.type;
     lox_parse_rule *rule = lookup_rule(operator);
-    parse_precedence((lox_precedence)rule->precedence +1);
+    parse_precedence((lox_precedence) rule->precedence + 1);
     switch (operator) {
         case TOKEN_PLUS:
             emit_byte(OP_ADD);
@@ -173,47 +173,46 @@ static void parse_unary() {
 }
 
 lox_parse_rule rules[] = {
-    [TOKEN_LEFT_PAREN] = {parse_group, NULL, PREC_NONE},
-    [TOKEN_RIGHT_PAREN] = {NULL, NULL, PREC_NONE},
-    [TOKEN_LEFT_BRACE] = {NULL, NULL, PREC_NONE},
-    [TOKEN_RIGHT_BRACE] = {NULL, NULL, PREC_NONE},
-    [TOKEN_COMMA] = {NULL, NULL, PREC_NONE},
-    [TOKEN_PERIOD] = {NULL, NULL, PREC_NONE},
-    [TOKEN_MINUS] = {parse_unary, parse_binary, PREC_TERM},
-    [TOKEN_PLUS] = {NULL, parse_binary, PREC_TERM},
-    [TOKEN_SEMICOLON] = {NULL, NULL, PREC_NONE},
-    [TOKEN_SLASH] = {NULL, parse_binary, PREC_FACTOR},
-    [TOKEN_STAR] = {NULL, parse_binary, PREC_FACTOR},
-    [TOKEN_BANG] = {NULL, NULL, PREC_NONE},
-    [TOKEN_NOT_EQUAL] = {NULL, NULL, PREC_NONE},
-    [TOKEN_EQUAL] = {NULL, NULL, PREC_NONE},
-    [TOKEN_EQUALITY] = {NULL, NULL, PREC_NONE},
-    [TOKEN_GREATER_THAN] = {NULL, NULL, PREC_NONE},
-    [TOKEN_GREATER_THAN_EQUAL] = {NULL, NULL, PREC_NONE},
-    [TOKEN_LESS_THAN] = {NULL, NULL, PREC_NONE},
-    [TOKEN_LESS_THAN_EQUAL] = {NULL, NULL, PREC_NONE},
-    [TOKEN_IDENTIFIER] = {NULL, NULL, PREC_NONE},
-    [TOKEN_STRING] = {NULL, NULL, PREC_NONE},
-    [TOKEN_NUMBER] = {parse_number, NULL, PREC_NONE},
-    [TOKEN_AND] = {NULL, NULL, PREC_NONE},
-    [TOKEN_CLASS] = {NULL, NULL, PREC_NONE},
-    [TOKEN_ELSE] = {NULL, NULL, PREC_NONE},
-    [TOKEN_FALSE] = {NULL, NULL, PREC_NONE},
-    [TOKEN_FOR] = {NULL, NULL, PREC_NONE},
-    [TOKEN_FUN] = {NULL, NULL, PREC_NONE},
-    [TOKEN_IF] = {NULL, NULL, PREC_NONE},
-    [TOKEN_NIL] = {NULL, NULL, PREC_NONE},
-    [TOKEN_OR] = {NULL, NULL, PREC_NONE},
-    [TOKEN_PRINT] = {NULL, NULL, PREC_NONE},
-    [TOKEN_RETURN] = {NULL, NULL, PREC_NONE},
-    [TOKEN_SUPER] = {NULL, NULL, PREC_NONE},
-    [TOKEN_THIS] = {NULL, NULL, PREC_NONE},
-    [TOKEN_TRUE] = {NULL, NULL, PREC_NONE},
-    [TOKEN_VAR] = {NULL, NULL, PREC_NONE},
-    [TOKEN_WHILE] = {NULL, NULL, PREC_NONE},
-    [TOKEN_ERROR] = {NULL, NULL, PREC_NONE},
-    [TOKEN_EOF] = {NULL, NULL, PREC_NONE}
-};
+        [TOKEN_LEFT_PAREN] = {parse_group, NULL, PREC_NONE},
+        [TOKEN_RIGHT_PAREN] = {NULL, NULL, PREC_NONE},
+        [TOKEN_LEFT_BRACE] = {NULL, NULL, PREC_NONE},
+        [TOKEN_RIGHT_BRACE] = {NULL, NULL, PREC_NONE},
+        [TOKEN_COMMA] = {NULL, NULL, PREC_NONE},
+        [TOKEN_PERIOD] = {NULL, NULL, PREC_NONE},
+        [TOKEN_MINUS] = {parse_unary, parse_binary, PREC_TERM},
+        [TOKEN_PLUS] = {NULL, parse_binary, PREC_TERM},
+        [TOKEN_SEMICOLON] = {NULL, NULL, PREC_NONE},
+        [TOKEN_SLASH] = {NULL, parse_binary, PREC_FACTOR},
+        [TOKEN_STAR] = {NULL, parse_binary, PREC_FACTOR},
+        [TOKEN_BANG] = {NULL, NULL, PREC_NONE},
+        [TOKEN_NOT_EQUAL] = {NULL, NULL, PREC_NONE},
+        [TOKEN_EQUAL] = {NULL, NULL, PREC_NONE},
+        [TOKEN_EQUALITY] = {NULL, NULL, PREC_NONE},
+        [TOKEN_GREATER_THAN] = {NULL, NULL, PREC_NONE},
+        [TOKEN_GREATER_THAN_EQUAL] = {NULL, NULL, PREC_NONE},
+        [TOKEN_LESS_THAN] = {NULL, NULL, PREC_NONE},
+        [TOKEN_LESS_THAN_EQUAL] = {NULL, NULL, PREC_NONE},
+        [TOKEN_IDENTIFIER] = {NULL, NULL, PREC_NONE},
+        [TOKEN_STRING] = {NULL, NULL, PREC_NONE},
+        [TOKEN_NUMBER] = {parse_number, NULL, PREC_NONE},
+        [TOKEN_AND] = {NULL, NULL, PREC_NONE},
+        [TOKEN_CLASS] = {NULL, NULL, PREC_NONE},
+        [TOKEN_ELSE] = {NULL, NULL, PREC_NONE},
+        [TOKEN_FALSE] = {NULL, NULL, PREC_NONE},
+        [TOKEN_FOR] = {NULL, NULL, PREC_NONE},
+        [TOKEN_FUN] = {NULL, NULL, PREC_NONE},
+        [TOKEN_IF] = {NULL, NULL, PREC_NONE},
+        [TOKEN_NIL] = {NULL, NULL, PREC_NONE},
+        [TOKEN_OR] = {NULL, NULL, PREC_NONE},
+        [TOKEN_PRINT] = {NULL, NULL, PREC_NONE},
+        [TOKEN_RETURN] = {NULL, NULL, PREC_NONE},
+        [TOKEN_SUPER] = {NULL, NULL, PREC_NONE},
+        [TOKEN_THIS] = {NULL, NULL, PREC_NONE},
+        [TOKEN_TRUE] = {NULL, NULL, PREC_NONE},
+        [TOKEN_VAR] = {NULL, NULL, PREC_NONE},
+        [TOKEN_WHILE] = {NULL, NULL, PREC_NONE},
+        [TOKEN_ERROR] = {NULL, NULL, PREC_NONE},
+        [TOKEN_EOF] = {NULL, NULL, PREC_NONE}};
 
 static void parse_precedence(lox_precedence precedence) {
     process_token();
@@ -231,7 +230,7 @@ static void parse_precedence(lox_precedence precedence) {
     }
 }
 
-static lox_parse_rule* lookup_rule(lox_token_type type) {
+static lox_parse_rule *lookup_rule(lox_token_type type) {
     return &rules[type];
 }
 

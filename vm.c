@@ -2,11 +2,11 @@
 // Created by Mic Pringle on 03/12/2022.
 //
 
-#include <stdio.h>
+#include "vm.h"
 #include "common.h"
 #include "compiler.h"
-#include "vm.h"
 #include "debug.h"
+#include <stdio.h>
 
 lox_virtual_machine v_mach;
 
@@ -19,7 +19,6 @@ void build_virtual_machine() {
 }
 
 void purge_virtual_machine() {
-
 }
 
 void push_stack(lox_value value) {
@@ -35,12 +34,12 @@ lox_value pop_stack() {
 static lox_interpret_result run() {
 #define READ_BYTE() (*v_mach.instruction_pointer++)
 #define READ_CONSTANT() (v_mach.chunk->constants.values[READ_BYTE()])
-#define BINARY_OP(op) \
-do { \
-    double b = pop_stack(); \
-    double a = pop_stack(); \
-    push_stack(a op b); \
-} while (false)
+#define BINARY_OP(op)           \
+    do {                        \
+        double b = pop_stack(); \
+        double a = pop_stack(); \
+        push_stack(a op b);     \
+    } while (false)
 
     for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
@@ -51,7 +50,7 @@ do { \
             printf(" ]");
         }
         printf("\n");
-        disassemble_instruction(v_mach.chunk, (int)(v_mach.instruction_pointer - v_mach.chunk->code));
+        disassemble_instruction(v_mach.chunk, (int) (v_mach.instruction_pointer - v_mach.chunk->code));
 #endif
 
         uint8_t instruction;

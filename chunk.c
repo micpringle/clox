@@ -2,9 +2,8 @@
 // Created by Mic Pringle on 03/12/2022.
 //
 
-#include <stdlib.h>
-#include "memory.h"
 #include "chunk.h"
+#include "memory.h"
 
 void build_chunk(lox_chunk *chunk) {
     chunk->capacity = 0;

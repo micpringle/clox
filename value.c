@@ -2,9 +2,9 @@
 // Created by Mic Pringle on 03/12/2022.
 //
 
-#include <stdio.h>
-#include "memory.h"
 #include "value.h"
+#include "memory.h"
+#include <stdio.h>
 
 void build_value_array(lox_value_array *array) {
     array->capacity = 0;
