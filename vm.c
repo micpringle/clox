@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include "common.h"
+#include "compiler.h"
 #include "vm.h"
 #include "debug.h"
 
@@ -93,8 +94,7 @@ do { \
 #undef READ_BYTE
 }
 
-lox_interpret_result interpret_chunk(lox_chunk *chunk) {
-    v_mach.chunk = chunk;
-    v_mach.instruction_pointer = v_mach.chunk->code;
-    return run();
+lox_interpret_result interpret_source(const char *source) {
+    compile_source(source);
+    return INTERPRET_OK;
 }

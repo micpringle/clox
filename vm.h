@@ -26,7 +26,7 @@ typedef enum {
 void build_virtual_machine();
 void purge_virtual_machine();
 
-lox_interpret_result interpret_chunk(lox_chunk *chunk);
+lox_interpret_result interpret_source(const char *source);
 
 void push_stack(lox_value value);
 lox_value pop_stack();

@@ -1,38 +1,69 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "common.h"
-#include "debug.h"
 #include "vm.h"
-#include "chunk.h"
+
+static void run_repl() {
+    char line[1024];
+    for (;;) {
+        printf("> ");
+        if (!fgets(line, sizeof(line), stdin)) {
+            printf("\n");
+            break;
+        }
+        interpret_source(line);
+    }
+}
+
+static char* read_file(const char *path) {
+    FILE *file = fopen(path, "rb");
+    if (file == NULL) {
+        fprintf(stderr, "Couldn't open file: \"%s\".\n", path);
+        exit(74);
+    }
+
+    fseek(file, 0L, SEEK_END);
+    size_t file_size = ftell(file);
+    rewind(file);
+
+    char *buffer = (char *)malloc(file_size + 1);
+    if (buffer == NULL) {
+        fprintf(stderr, "Not enough memory to read file: \"%s\".\n", path);
+        exit(74);
+    }
+
+    size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
+    if (bytes_read < file_size) {
+        fprintf(stderr, "Couldn't read file: \"%s\".\n", path);
+        exit(74);
+    }
+    buffer[bytes_read] = '\0';
+
+    fclose(file);
+    return buffer;
+}
+
+static void run_script(const char *path) {
+    char *source = read_file(path);
+    lox_interpret_result result = interpret_source(source);
+    free(source);
+
+    if (result == INTERPRET_COMPILE_ERROR) exit(65);
+    if (result == INTERPRET_RUNTIME_ERROR) exit(70);
+}
 
 int main(int argc, const char* argv[]) {
     build_virtual_machine();
 
-    lox_chunk chunk;
-    build_chunk(&chunk);
+    if (argc == 1) {
+        run_repl();
+    } else if (argc == 2) {
+        run_script(argv[1]);
+    } else {
+        fprintf(stderr, "Usage: clox [path]\n");
+    }
 
-    int index = add_constant(&chunk, 1.2);
-    write_chunk(&chunk, OP_CONSTANT, 100);
-    write_chunk(&chunk, index, 100);
-
-    index = add_constant(&chunk, 3.4);
-    write_chunk(&chunk, OP_CONSTANT, 100);
-    write_chunk(&chunk, index, 100);
-
-    write_chunk(&chunk, OP_ADD, 100);
-
-    index = add_constant(&chunk, 5.6);
-    write_chunk(&chunk, OP_CONSTANT, 100);
-    write_chunk(&chunk, index, 100);
-
-    write_chunk(&chunk, OP_DIVIDE, 100);
-    write_chunk(&chunk, OP_NEGATE, 100);
-
-    write_chunk(&chunk, OP_RETURN, 100);
-
-    disassemble_chunk(&chunk, "test chunk");
-    interpret_chunk(&chunk);
-
-    purge_chunk(&chunk);
     purge_virtual_machine();
-
     return 0;
 }
