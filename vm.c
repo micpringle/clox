@@ -95,6 +95,19 @@ do { \
 }
 
 lox_interpret_result interpret_source(const char *source) {
-    compile_source(source);
-    return INTERPRET_OK;
+    lox_chunk chunk;
+    build_chunk(&chunk);
+
+    if (!compile_source(source, &chunk)) {
+        purge_chunk(&chunk);
+        return INTERPRET_COMPILE_ERROR;
+    }
+
+    v_mach.chunk = &chunk;
+    v_mach.instruction_pointer = v_mach.chunk->code;
+
+    lox_interpret_result result = run();
+
+    purge_chunk(&chunk);
+    return result;
 }

@@ -5,6 +5,8 @@
 #ifndef CLOX_COMPILER_H
 #define CLOX_COMPILER_H
 
-void compile_source(const char *source);
+#include "vm.h"
+
+bool compile_source(const char *source, lox_chunk *chunk);
 
 #endif
