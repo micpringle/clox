@@ -29,5 +29,5 @@ void purge_value_array(lox_value_array *array) {
 }
 
 void print_value(lox_value value) {
-    printf("%g", value);
+    printf("%g", AS_NUMBER(value));
 }

@@ -6,12 +6,26 @@
 #include "common.h"
 #include "compiler.h"
 #include "debug.h"
+#include <stdarg.h>
 #include <stdio.h>
 
 lox_virtual_machine v_mach;
 
 static void reset_stack() {
     v_mach.stack_next = v_mach.stack;
+}
+
+static void runtime_error(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+    fputs("\n", stderr);
+
+    size_t instruction = v_mach.instruction_pointer - v_mach.chunk->code - 1;
+    int line_number = v_mach.chunk->line_numbers[instruction];
+    fprintf(stderr, "[line %d] in source\n", line_number);
+    reset_stack();
 }
 
 void build_virtual_machine() {
@@ -31,14 +45,22 @@ lox_value pop_stack() {
     return *v_mach.stack_next;
 }
 
+static lox_value peek_stack(int distance) {
+    return v_mach.stack_next[-1 - distance];
+}
+
 static lox_interpret_result run() {
 #define READ_BYTE() (*v_mach.instruction_pointer++)
 #define READ_CONSTANT() (v_mach.chunk->constants.values[READ_BYTE()])
-#define BINARY_OP(op)           \
-    do {                        \
-        double b = pop_stack(); \
-        double a = pop_stack(); \
-        push_stack(a op b);     \
+#define BINARY_OP(value_type, op)                                     \
+    do {                                                              \
+        if (!IS_NUMBER(peek_stack(0)) || !IS_NUMBER(peek_stack(1))) { \
+            runtime_error("Operands must be numbers.");               \
+            return INTERPRET_RUNTIME_ERROR;                           \
+        }                                                             \
+        double b = AS_NUMBER(pop_stack());                            \
+        double a = AS_NUMBER(pop_stack());                            \
+        push_stack(value_type(a op b));                               \
     } while (false)
 
     for (;;) {
@@ -61,23 +83,27 @@ static lox_interpret_result run() {
                 break;
             }
             case OP_ADD: {
-                BINARY_OP(+);
+                BINARY_OP(NUMBER_VAL, +);
                 break;
             }
             case OP_SUBTRACT: {
-                BINARY_OP(-);
+                BINARY_OP(NUMBER_VAL, -);
                 break;
             }
             case OP_MULTIPLY: {
-                BINARY_OP(*);
+                BINARY_OP(NUMBER_VAL, *);
                 break;
             }
             case OP_DIVIDE: {
-                BINARY_OP(/);
+                BINARY_OP(NUMBER_VAL, /);
                 break;
             }
             case OP_NEGATE: {
-                push_stack(-pop_stack());
+                if (!IS_NUMBER(peek_stack(0))) {
+                    runtime_error("Operand must be a number.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push_stack(NUMBER_VAL(-AS_NUMBER(pop_stack())));
                 break;
             }
             case OP_RETURN: {

@@ -156,7 +156,7 @@ static void parse_group() {
 
 static void parse_number() {
     double value = strtod(parser.previous_token.start, NULL);
-    emit_constant(value);
+    emit_constant(NUMBER_VAL(value));
 }
 
 static void parse_unary() {
