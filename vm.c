@@ -95,6 +95,18 @@ static lox_interpret_result run() {
             case OP_FALSE:
                 push_stack(BOOL_VAL(false));
                 break;
+            case OP_EQUAL: {
+                lox_value b = pop_stack();
+                lox_value a = pop_stack();
+                push_stack(BOOL_VAL(values_equal(a, b)));
+                break;
+            }
+            case OP_GREATER:
+                BINARY_OP(BOOL_VAL, >);
+                break;
+            case OP_LESS:
+                BINARY_OP(BOOL_VAL, <);
+                break;
             case OP_ADD:
                 BINARY_OP(NUMBER_VAL, +);
                 break;

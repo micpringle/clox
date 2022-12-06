@@ -41,3 +41,17 @@ void print_value(lox_value value) {
             break;
     }
 }
+
+bool values_equal(lox_value lhs, lox_value rhs) {
+    if (lhs.type != rhs.type) return false;
+    switch (lhs.type) {
+        case VAL_BOOL:
+            return AS_BOOL(lhs) == AS_BOOL(rhs);
+        case VAL_NIL:
+            return true;
+        case VAL_NUMBER:
+            return AS_NUMBER(lhs) == AS_NUMBER(rhs);
+        default:
+            return false;
+    }
+}

@@ -38,6 +38,8 @@ typedef struct {
     lox_value *values;
 } lox_value_array;
 
+bool values_equal(lox_value lhs, lox_value rhs);
+
 void build_value_array(lox_value_array *array);
 void write_value_array(lox_value_array *array, lox_value value);
 void purge_value_array(lox_value_array *array);

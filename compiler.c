@@ -132,6 +132,24 @@ static void parse_binary() {
     lox_parse_rule *rule = lookup_rule(operator);
     parse_precedence((lox_precedence) rule->precedence + 1);
     switch (operator) {
+        case TOKEN_NOT_EQUAL:
+            emit_bytes(OP_EQUAL, OP_NOT);
+            break;
+        case TOKEN_EQUALITY:
+            emit_byte(OP_EQUAL);
+            break;
+        case TOKEN_GREATER_THAN:
+            emit_byte(OP_GREATER);
+            break;
+        case TOKEN_GREATER_THAN_EQUAL:
+            emit_bytes(OP_LESS, OP_NOT);
+            break;
+        case TOKEN_LESS_THAN:
+            emit_byte(OP_LESS);
+            break;
+        case TOKEN_LESS_THAN_EQUAL:
+            emit_bytes(OP_GREATER, OP_NOT);
+            break;
         case TOKEN_PLUS:
             emit_byte(OP_ADD);
             break;
@@ -203,13 +221,13 @@ lox_parse_rule rules[] = {
         [TOKEN_SLASH] = {NULL, parse_binary, PREC_FACTOR},
         [TOKEN_STAR] = {NULL, parse_binary, PREC_FACTOR},
         [TOKEN_BANG] = {parse_unary, NULL, PREC_NONE},
-        [TOKEN_NOT_EQUAL] = {NULL, NULL, PREC_NONE},
+        [TOKEN_NOT_EQUAL] = {NULL, parse_binary, PREC_NONE},
         [TOKEN_EQUAL] = {NULL, NULL, PREC_NONE},
-        [TOKEN_EQUALITY] = {NULL, NULL, PREC_NONE},
-        [TOKEN_GREATER_THAN] = {NULL, NULL, PREC_NONE},
-        [TOKEN_GREATER_THAN_EQUAL] = {NULL, NULL, PREC_NONE},
-        [TOKEN_LESS_THAN] = {NULL, NULL, PREC_NONE},
-        [TOKEN_LESS_THAN_EQUAL] = {NULL, NULL, PREC_NONE},
+        [TOKEN_EQUALITY] = {NULL, parse_binary, PREC_EQUALITY},
+        [TOKEN_GREATER_THAN] = {NULL, parse_binary, PREC_COMPARISON},
+        [TOKEN_GREATER_THAN_EQUAL] = {NULL, parse_binary, PREC_COMPARISON},
+        [TOKEN_LESS_THAN] = {NULL, parse_binary, PREC_COMPARISON},
+        [TOKEN_LESS_THAN_EQUAL] = {NULL, parse_binary, PREC_COMPARISON},
         [TOKEN_IDENTIFIER] = {NULL, NULL, PREC_NONE},
         [TOKEN_STRING] = {NULL, NULL, PREC_NONE},
         [TOKEN_NUMBER] = {parse_number, NULL, PREC_NONE},
