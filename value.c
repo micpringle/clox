@@ -29,5 +29,15 @@ void purge_value_array(lox_value_array *array) {
 }
 
 void print_value(lox_value value) {
-    printf("%g", AS_NUMBER(value));
+    switch (value.type) {
+        case VAL_BOOL:
+            printf(AS_BOOL(value) ? "true" : "false");
+            break;
+        case VAL_NIL:
+            printf("nil");
+            break;
+        case VAL_NUMBER:
+            printf("%g", AS_NUMBER(value));
+            break;
+    }
 }

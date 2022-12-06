@@ -82,35 +82,38 @@ static lox_interpret_result run() {
                 push_stack(constant);
                 break;
             }
-            case OP_ADD: {
+            case OP_NIL:
+                push_stack(NIL_VAL);
+                break;
+            case OP_TRUE:
+                push_stack(BOOL_VAL(true));
+                break;
+            case OP_FALSE:
+                push_stack(BOOL_VAL(false));
+                break;
+            case OP_ADD:
                 BINARY_OP(NUMBER_VAL, +);
                 break;
-            }
-            case OP_SUBTRACT: {
+            case OP_SUBTRACT:
                 BINARY_OP(NUMBER_VAL, -);
                 break;
-            }
-            case OP_MULTIPLY: {
+            case OP_MULTIPLY:
                 BINARY_OP(NUMBER_VAL, *);
                 break;
-            }
-            case OP_DIVIDE: {
+            case OP_DIVIDE:
                 BINARY_OP(NUMBER_VAL, /);
                 break;
-            }
-            case OP_NEGATE: {
+            case OP_NEGATE:
                 if (!IS_NUMBER(peek_stack(0))) {
                     runtime_error("Operand must be a number.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 push_stack(NUMBER_VAL(-AS_NUMBER(pop_stack())));
                 break;
-            }
-            case OP_RETURN: {
+            case OP_RETURN:
                 print_value(pop_stack());
                 printf("\n");
                 return INTERPRET_OK;
-            }
         }
     }
 
