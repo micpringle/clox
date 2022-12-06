@@ -125,9 +125,9 @@ static lox_token_type determine_identifier_type() {
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
                     case 'h':
-                        check_for_keyword(2, 2, "is", TOKEN_THIS);
+                        return check_for_keyword(2, 2, "is", TOKEN_THIS);
                     case 'r':
-                        check_for_keyword(2, 2, "ue", TOKEN_TRUE);
+                        return check_for_keyword(2, 2, "ue", TOKEN_TRUE);
                 }
             }
             break;
