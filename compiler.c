@@ -163,6 +163,9 @@ static void parse_unary() {
     lox_token_type operator = parser.previous_token.type;
     parse_precedence(PREC_UNARY);
     switch (operator) {
+        case TOKEN_BANG:
+            emit_byte(OP_NOT);
+            break;
         case TOKEN_MINUS:
             emit_byte(OP_NEGATE);
             break;
@@ -199,7 +202,7 @@ lox_parse_rule rules[] = {
         [TOKEN_SEMICOLON] = {NULL, NULL, PREC_NONE},
         [TOKEN_SLASH] = {NULL, parse_binary, PREC_FACTOR},
         [TOKEN_STAR] = {NULL, parse_binary, PREC_FACTOR},
-        [TOKEN_BANG] = {NULL, NULL, PREC_NONE},
+        [TOKEN_BANG] = {parse_unary, NULL, PREC_NONE},
         [TOKEN_NOT_EQUAL] = {NULL, NULL, PREC_NONE},
         [TOKEN_EQUAL] = {NULL, NULL, PREC_NONE},
         [TOKEN_EQUALITY] = {NULL, NULL, PREC_NONE},

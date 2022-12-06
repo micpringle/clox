@@ -49,6 +49,10 @@ static lox_value peek_stack(int distance) {
     return v_mach.stack_next[-1 - distance];
 }
 
+static bool is_falsey(lox_value value) {
+    return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
+}
+
 static lox_interpret_result run() {
 #define READ_BYTE() (*v_mach.instruction_pointer++)
 #define READ_CONSTANT() (v_mach.chunk->constants.values[READ_BYTE()])
@@ -102,6 +106,9 @@ static lox_interpret_result run() {
                 break;
             case OP_DIVIDE:
                 BINARY_OP(NUMBER_VAL, /);
+                break;
+            case OP_NOT:
+                push_stack(BOOL_VAL(is_falsey(pop_stack())));
                 break;
             case OP_NEGATE:
                 if (!IS_NUMBER(peek_stack(0))) {
