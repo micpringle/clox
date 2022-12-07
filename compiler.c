@@ -177,6 +177,10 @@ static void parse_number() {
     emit_constant(NUMBER_VAL(value));
 }
 
+static void parse_string() {
+    emit_constant(OBJECT_VAL(copy_string(parser.previous_token.start + 1, parser.previous_token.length - 2)));
+}
+
 static void parse_unary() {
     lox_token_type operator = parser.previous_token.type;
     parse_precedence(PREC_UNARY);
@@ -229,7 +233,7 @@ lox_parse_rule rules[] = {
     [TOKEN_LESS_THAN]          = {NULL,             parse_binary,   PREC_COMPARISON},
     [TOKEN_LESS_THAN_EQUAL]    = {NULL,             parse_binary,   PREC_COMPARISON},
     [TOKEN_IDENTIFIER]         = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_STRING]             = {NULL,             NULL,           PREC_NONE},
+    [TOKEN_STRING]             = {parse_string,     NULL,           PREC_NONE},
     [TOKEN_NUMBER]             = {parse_number,     NULL,           PREC_NONE},
     [TOKEN_AND]                = {NULL,             NULL,           PREC_NONE},
     [TOKEN_CLASS]              = {NULL,             NULL,           PREC_NONE},
