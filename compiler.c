@@ -45,6 +45,8 @@ lox_parser parser;
 lox_chunk *compiling_chunk;
 
 static void parse_expression();
+static void parse_declaration();
+static void parse_statement();
 static lox_parse_rule *lookup_rule(lox_token_type type);
 static void parse_precedence(lox_precedence precedence);
 
@@ -90,6 +92,16 @@ static void consume_token(lox_token_type type, const char *message) {
         return;
     }
     error_at_current(message);
+}
+
+static bool check_token_type(lox_token_type type) {
+    return parser.current_token.type == type;
+}
+
+static bool match_token(lox_token_type type) {
+    if (!check_token_type(type)) return false;
+    process_token();
+    return true;
 }
 
 static void emit_byte(uint8_t op_code) {
@@ -275,8 +287,24 @@ static lox_parse_rule *lookup_rule(lox_token_type type) {
     return &rules[type];
 }
 
+static void parse_print_statement() {
+    parse_expression();
+    consume_token(TOKEN_SEMICOLON, "Expected ';' after value.");
+    emit_byte(OP_PRINT);
+}
+
 static void parse_expression() {
     parse_precedence(PREC_ASSIGNMENT);
+}
+
+static void parse_declaration() {
+    parse_statement();
+}
+
+static void parse_statement() {
+    if (match_token(TOKEN_PRINT)) {
+        parse_print_statement();
+    }
 }
 
 bool compile_source(const char *source, lox_chunk *chunk) {
@@ -286,9 +314,11 @@ bool compile_source(const char *source, lox_chunk *chunk) {
     parser.is_panicked = false;
 
     process_token();
-    parse_expression();
-    consume_token(TOKEN_EOF, "Expected end of expression.");
-    finish_compilation();
 
+    while (!match_token(TOKEN_EOF)) {
+        parse_declaration();
+    }
+
+    finish_compilation();
     return !parser.errored;
 }

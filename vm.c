@@ -161,9 +161,12 @@ static lox_interpret_result run() {
                 }
                 push_stack(NUMBER_VAL(-AS_NUMBER(pop_stack())));
                 break;
-            case OP_RETURN:
+            case OP_PRINT: {
                 print_value(pop_stack());
                 printf("\n");
+                break;
+            }
+            case OP_RETURN:
                 return INTERPRET_OK;
         }
     }
