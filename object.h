@@ -28,6 +28,7 @@ struct lox_string {
     lox_object object;
     int length;
     char *characters;
+    uint32_t hash;
 };
 
 lox_string *take_string(char *characters, int length);

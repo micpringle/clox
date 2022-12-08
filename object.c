@@ -20,22 +20,34 @@ static lox_object *allocate_object(size_t size, lox_object_type type) {
     return object;
 }
 
-static lox_string *allocate_string(char *characters, int length) {
+static lox_string *allocate_string(char *characters, int length, uint32_t hash) {
     lox_string *string = ALLOCATE_OBJ(lox_string, OBJ_STRING);
     string->length = length;
     string->characters = characters;
+    string->hash = hash;
     return string;
 }
 
+static uint32_t hash_string(const char *characters, int length) {
+    uint32_t hash = 2166136261u;
+    for (int i = 0; i < length; i++) {
+        hash ^= (uint8_t)characters[i];
+        hash *= 16777619;
+    }
+    return hash;
+}
+
 lox_string *take_string(char *characters, int length) {
-    return allocate_string(characters, length);
+    uint32_t hash = hash_string(characters, length);
+    return allocate_string(characters, length, hash);
 }
 
 lox_string *copy_string(const char *characters, int length) {
+    uint32_t hash = hash_string(characters, length);
     char *buffer = ALLOCATE(char, length + 1);
     memcpy(buffer, characters, length);
     buffer[length] = '\0';
-    return allocate_string(buffer, length);
+    return allocate_string(buffer, length, hash);
 }
 
 void print_object(lox_value value) {
