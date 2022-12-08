@@ -45,6 +45,10 @@ int disassemble_instruction(lox_chunk *chunk, int offset) {
             return simple_instruction("OP_TRUE", offset);
         case OP_FALSE:
             return simple_instruction("OP_FALSE", offset);
+        case OP_POP:
+            return simple_instruction("OP_POP", offset);
+        case OP_DEFINE_GLOBAL:
+            return constant_instruction("OP_DEFINE_GLOBAL", chunk, offset);
         case OP_EQUAL:
             return simple_instruction("OP_EQUAL", offset);
         case OP_GREATER:

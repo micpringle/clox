@@ -287,6 +287,47 @@ static lox_parse_rule *lookup_rule(lox_token_type type) {
     return &rules[type];
 }
 
+static uint8_t identifier_constant(lox_token *name) {
+    return make_constant(OBJECT_VAL(copy_string(name->start, name->length)));
+}
+
+static uint8_t parse_variable(const char *message) {
+    consume_token(TOKEN_IDENTIFIER, message);
+    return identifier_constant(&parser.previous_token);
+}
+
+static void define_variable(uint8_t index) {
+    emit_bytes(OP_DEFINE_GLOBAL, index);
+}
+
+static void synchronize() {
+    parser.is_panicked = false;
+
+    while (parser.current_token.type != TOKEN_EOF) {
+        if (parser.previous_token.type == TOKEN_SEMICOLON) return;
+        switch (parser.current_token.type) {
+            case TOKEN_CLASS:
+            case TOKEN_FUN:
+            case TOKEN_VAR:
+            case TOKEN_FOR:
+            case TOKEN_IF:
+            case TOKEN_WHILE:
+            case TOKEN_PRINT:
+            case TOKEN_RETURN:
+                return;
+            default:
+                ; // Do nothing.
+        }
+        process_token();
+    }
+}
+
+static void parse_expression_statement() {
+    parse_expression();
+    consume_token(TOKEN_SEMICOLON, "Expected ';' after expression.");
+    emit_byte(OP_POP);
+}
+
 static void parse_print_statement() {
     parse_expression();
     consume_token(TOKEN_SEMICOLON, "Expected ';' after value.");
@@ -297,13 +338,34 @@ static void parse_expression() {
     parse_precedence(PREC_ASSIGNMENT);
 }
 
+static void parse_variable_declaration() {
+    uint8_t index = parse_variable("Expected variable name.");
+
+    if (match_token(TOKEN_EQUAL)) {
+        parse_expression();
+    } else {
+        emit_byte(OP_NIL);
+    }
+
+    consume_token(TOKEN_SEMICOLON, "Expected ';' after variable declaration.");
+    define_variable(index);
+}
+
 static void parse_declaration() {
-    parse_statement();
+    if (match_token(TOKEN_VAR)) {
+        parse_variable_declaration();
+    } else {
+        parse_statement();
+    }
+
+    if (parser.is_panicked) synchronize();
 }
 
 static void parse_statement() {
     if (match_token(TOKEN_PRINT)) {
         parse_print_statement();
+    } else {
+        parse_expression_statement();
     }
 }
 

@@ -26,7 +26,7 @@ static lox_string *allocate_string(char *characters, int length, uint32_t hash) 
     string->length = length;
     string->characters = characters;
     string->hash = hash;
-    set_table_row(&v_mach.strings, string, NIL_VAL);
+    set_table_row(&v_mach.interned_strings, string, NIL_VAL);
     return string;
 }
 
@@ -42,7 +42,7 @@ static uint32_t hash_string(const char *characters, int length) {
 lox_string *take_string(char *characters, int length) {
     uint32_t hash = hash_string(characters, length);
 
-    lox_string *interned = find_table_string(&v_mach.strings, characters, length, hash);
+    lox_string *interned = find_table_string(&v_mach.interned_strings, characters, length, hash);
     if (interned != NULL) {
         FREE_ARRAY(char, characters, length + 1);
         return interned;
@@ -54,7 +54,7 @@ lox_string *take_string(char *characters, int length) {
 lox_string *copy_string(const char *characters, int length) {
     uint32_t hash = hash_string(characters, length);
 
-    lox_string *interned = find_table_string(&v_mach.strings, characters, length, hash);
+    lox_string *interned = find_table_string(&v_mach.interned_strings, characters, length, hash);
     if (interned != NULL) return interned;
 
     char *buffer = ALLOCATE(char, length + 1);

@@ -35,11 +35,13 @@ static void runtime_error(const char *format, ...) {
 void build_virtual_machine() {
     reset_stack();
     v_mach.object_list_head = NULL;
-    build_table(&v_mach.strings);
+    build_table(&v_mach.global_variables);
+    build_table(&v_mach.interned_strings);
 }
 
 void purge_virtual_machine() {
-    purge_table(&v_mach.strings);
+    purge_table(&v_mach.global_variables);
+    purge_table(&v_mach.interned_strings);
     purge_objects();
 }
 
@@ -78,6 +80,7 @@ static void concatenate_strings() {
 static lox_interpret_result run() {
 #define READ_BYTE() (*v_mach.instruction_pointer++)
 #define READ_CONSTANT() (v_mach.chunk->constants.values[READ_BYTE()])
+#define READ_STRING() AS_STRING(READ_CONSTANT())
 #define BINARY_OP(value_type, op)                                     \
     do {                                                              \
         if (!IS_NUMBER(peek_stack(0)) || !IS_NUMBER(peek_stack(1))) { \
@@ -117,6 +120,15 @@ static lox_interpret_result run() {
             case OP_FALSE:
                 push_stack(BOOL_VAL(false));
                 break;
+            case OP_POP:
+                pop_stack();
+                break;
+            case OP_DEFINE_GLOBAL: {
+                lox_string *name = READ_STRING();
+                set_table_row(&v_mach.global_variables, name, peek_stack(0));
+                pop_stack();
+                break;
+            }
             case OP_EQUAL: {
                 lox_value rhs = pop_stack();
                 lox_value lhs = pop_stack();
@@ -137,7 +149,7 @@ static lox_interpret_result run() {
                     double lhs = AS_NUMBER(pop_stack());
                     push_stack(NUMBER_VAL(lhs + rhs));
                 } else {
-                    runtime_error("Operands must be two numbers or two strings.");
+                    runtime_error("Operands must be two numbers or two interned_strings.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
@@ -172,6 +184,7 @@ static lox_interpret_result run() {
     }
 
 #undef BINARY_OP
+#undef READ_STRING
 #undef READ_CONSTANT
 #undef READ_BYTE
 }
