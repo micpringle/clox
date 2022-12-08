@@ -25,9 +25,21 @@ static lox_string *allocate_string(char *characters, int length) {
     return string;
 }
 
+lox_string *take_string(const char *characters, int length) {
+    return allocate_string(characters, length);
+}
+
 lox_string *copy_string(const char *characters, int length) {
     char *buffer = ALLOCATE(char, length + 1);
     memcpy(buffer, characters, length);
     buffer[length] = '\0';
     return allocate_string(buffer, length);
+}
+
+void print_object(lox_value value) {
+    switch (OBJECT_TYPE(value)) {
+        case OBJ_STRING:
+            printf("%s", AS_CSTRING(value));
+            break;
+    }
 }

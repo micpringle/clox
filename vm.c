@@ -2,12 +2,16 @@
 // Created by Mic Pringle on 03/12/2022.
 //
 
-#include "vm.h"
 #include "common.h"
 #include "compiler.h"
 #include "debug.h"
+#include "object.h"
+#include "memory.h"
+#include "vm.h"
+
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 lox_virtual_machine v_mach;
 
@@ -53,6 +57,20 @@ static bool is_falsey(lox_value value) {
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
+static void concatenate_strings() {
+    lox_string *rhs = AS_STRING(pop_stack());
+    lox_string *lhs = AS_STRING(pop_stack());
+
+    int length = lhs->length + rhs->length;
+    char *characters = ALLOCATE(char, length + 1);
+    memcpy(characters, lhs->characters, lhs->length);
+    memcpy(characters + lhs->length, rhs->characters, rhs->length);
+    characters[length] = '\0';
+
+    lox_string *result = take_string(characters, length);
+    push_stack(OBJECT_VAL(result));
+}
+
 static lox_interpret_result run() {
 #define READ_BYTE() (*v_mach.instruction_pointer++)
 #define READ_CONSTANT() (v_mach.chunk->constants.values[READ_BYTE()])
@@ -96,9 +114,9 @@ static lox_interpret_result run() {
                 push_stack(BOOL_VAL(false));
                 break;
             case OP_EQUAL: {
-                lox_value b = pop_stack();
-                lox_value a = pop_stack();
-                push_stack(BOOL_VAL(values_equal(a, b)));
+                lox_value rhs = pop_stack();
+                lox_value lhs = pop_stack();
+                push_stack(BOOL_VAL(values_equal(lhs, rhs)));
                 break;
             }
             case OP_GREATER:
@@ -107,9 +125,19 @@ static lox_interpret_result run() {
             case OP_LESS:
                 BINARY_OP(BOOL_VAL, <);
                 break;
-            case OP_ADD:
-                BINARY_OP(NUMBER_VAL, +);
+            case OP_ADD: {
+                if (IS_STRING(peek_stack(0)) && IS_STRING(peek_stack(1))) {
+                    concatenate_strings();
+                } else if (IS_NUMBER(peek_stack(0)) && IS_NUMBER(peek_stack(1))) {
+                    double rhs = AS_NUMBER(pop_stack());
+                    double lhs = AS_NUMBER(pop_stack());
+                    push_stack(NUMBER_VAL(lhs + rhs));
+                } else {
+                    runtime_error("Operands must be two numbers or two strings.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
                 break;
+            }
             case OP_SUBTRACT:
                 BINARY_OP(NUMBER_VAL, -);
                 break;

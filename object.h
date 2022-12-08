@@ -13,7 +13,7 @@
 #define IS_STRING(value) is_object_type(value, OBJ_STRING)
 
 #define AS_STRING(value) ((lox_string *)AS_OBJECT(value))
-#define AS_CSTRING(value) ((lox_string *)AS_OBJECT(value)->characters)
+#define AS_CSTRING(value) (((lox_string *)AS_OBJECT(value))->characters)
 
 typedef enum {
     OBJ_STRING
@@ -29,7 +29,9 @@ struct lox_string {
     char *characters;
 };
 
+lox_string *take_string(const char *characters, int length);
 lox_string *copy_string(const char *characters, int length);
+void print_object(lox_value value);
 
 static inline bool is_object_type(lox_value value, lox_object_type type) {
     return IS_OBJECT(value) && AS_OBJECT(value)->type == type;

@@ -4,7 +4,10 @@
 
 #include "value.h"
 #include "memory.h"
+#include "object.h"
+
 #include <stdio.h>
+#include <string.h>
 
 void build_value_array(lox_value_array *array) {
     array->capacity = 0;
@@ -39,6 +42,9 @@ void print_value(lox_value value) {
         case VAL_NUMBER:
             printf("%g", AS_NUMBER(value));
             break;
+        case VAL_OBJECT:
+            print_object(value);
+            break;
     }
 }
 
@@ -51,6 +57,12 @@ bool values_equal(lox_value lhs, lox_value rhs) {
             return true;
         case VAL_NUMBER:
             return AS_NUMBER(lhs) == AS_NUMBER(rhs);
+        case VAL_OBJECT: {
+            lox_string *lhs_string = AS_STRING(lhs);
+            lox_string *rhs_string = AS_STRING(rhs);
+            return lhs_string->length == rhs_string->length &&
+                memcmp(lhs_string->characters, rhs_string->characters, lhs_string->length) == 0;
+        }
         default:
             return false;
     }
