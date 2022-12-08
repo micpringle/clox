@@ -112,3 +112,20 @@ void copy_table(lox_table *source, lox_table *destination) {
         }
     }
 }
+
+lox_string *find_table_string(lox_table *table, const char *characters, int length, uint32_t hash) {
+    if (table->count == 0) return NULL;
+
+    uint32_t index = hash % table->capacity;
+    for (;;) {
+        lox_table_row *row = &table->rows[index];
+        if (row->key == NULL) {
+            if (IS_NIL(row->value)) return NULL;
+        } else if (row->key->length == length && row->key->hash == hash &&
+                   memcmp(row->key->characters, characters, length) == 0) {
+            return row->key;
+        }
+
+        index = (index + 1) % table->capacity;
+    }
+}

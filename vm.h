@@ -7,6 +7,7 @@
 
 #include "chunk.h"
 #include "value.h"
+#include "table.h"
 
 #define STACK_MAX 256
 
@@ -15,6 +16,7 @@ typedef struct {
     uint8_t *instruction_pointer;
     lox_value stack[STACK_MAX];
     lox_value *stack_next;
+    lox_table strings;
     lox_object *object_list_head;
 } lox_virtual_machine;
 

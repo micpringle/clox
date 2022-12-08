@@ -35,9 +35,11 @@ static void runtime_error(const char *format, ...) {
 void build_virtual_machine() {
     reset_stack();
     v_mach.object_list_head = NULL;
+    build_table(&v_mach.strings);
 }
 
 void purge_virtual_machine() {
+    purge_table(&v_mach.strings);
     purge_objects();
 }
 

@@ -21,7 +21,9 @@ typedef struct {
 
 void build_table(lox_table *table);
 void purge_table(lox_table *table);
+
 void copy_table(lox_table *source, lox_table *destination);
+lox_string *find_table_string(lox_table *table, const char *characters, int length, uint32_t hash);
 
 bool get_table_row(lox_table *table, lox_string *key, lox_value *value);
 bool set_table_row(lox_table *table, lox_string *key, lox_value value);

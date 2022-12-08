@@ -57,12 +57,8 @@ bool values_equal(lox_value lhs, lox_value rhs) {
             return true;
         case VAL_NUMBER:
             return AS_NUMBER(lhs) == AS_NUMBER(rhs);
-        case VAL_OBJECT: {
-            lox_string *lhs_string = AS_STRING(lhs);
-            lox_string *rhs_string = AS_STRING(rhs);
-            return lhs_string->length == rhs_string->length &&
-                memcmp(lhs_string->characters, rhs_string->characters, lhs_string->length) == 0;
-        }
+        case VAL_OBJECT:
+            return AS_OBJECT(lhs) == AS_OBJECT(rhs);
         default:
             return false;
     }
