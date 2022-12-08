@@ -15,6 +15,7 @@ typedef struct {
     uint8_t *instruction_pointer;
     lox_value stack[STACK_MAX];
     lox_value *stack_next;
+    lox_object *object_list_head;
 } lox_virtual_machine;
 
 typedef enum {
@@ -22,6 +23,8 @@ typedef enum {
     INTERPRET_COMPILE_ERROR,
     INTERPRET_RUNTIME_ERROR
 } lox_interpret_result;
+
+extern lox_virtual_machine v_mach;
 
 void build_virtual_machine();
 void purge_virtual_machine();

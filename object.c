@@ -15,6 +15,8 @@
 static lox_object *allocate_object(size_t size, lox_object_type type) {
     lox_object *object = (lox_object *) reallocate(NULL, 0, size);
     object->type = type;
+    object->next_object = v_mach.object_list_head;
+    v_mach.object_list_head = object;
     return object;
 }
 
@@ -25,7 +27,7 @@ static lox_string *allocate_string(char *characters, int length) {
     return string;
 }
 
-lox_string *take_string(const char *characters, int length) {
+lox_string *take_string(char *characters, int length) {
     return allocate_string(characters, length);
 }
 

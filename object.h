@@ -21,6 +21,7 @@ typedef enum {
 
 struct lox_object {
     lox_object_type type;
+    struct lox_object *next_object;
 };
 
 struct lox_string {
@@ -29,7 +30,7 @@ struct lox_string {
     char *characters;
 };
 
-lox_string *take_string(const char *characters, int length);
+lox_string *take_string(char *characters, int length);
 lox_string *copy_string(const char *characters, int length);
 void print_object(lox_value value);
 
