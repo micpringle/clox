@@ -139,6 +139,15 @@ static lox_interpret_result run() {
                 pop_stack();
                 break;
             }
+            case OP_SET_GLOBAL: {
+                lox_string *identifier = READ_STRING();
+                if (set_table_row(&v_mach.global_variables, identifier, peek_stack(0))) {
+                    rip_table_row(&v_mach.global_variables, identifier);
+                    runtime_error("Undefined variable '%s'.", identifier->characters);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
             case OP_EQUAL: {
                 lox_value rhs = pop_stack();
                 lox_value lhs = pop_stack();

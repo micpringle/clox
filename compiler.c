@@ -33,7 +33,7 @@ typedef enum {
     PREC_PRIMARY
 } lox_precedence;
 
-typedef void (*lox_parse_function)();
+typedef void (*lox_parse_function)(bool can_assign);
 
 typedef struct {
     lox_parse_function prefix;
@@ -139,7 +139,7 @@ static void finish_compilation() {
 #endif
 }
 
-static void parse_binary() {
+static void parse_binary(bool can_assign) {
     lox_token_type operator = parser.previous_token.type;
     lox_parse_rule *rule = lookup_rule(operator);
     parse_precedence((lox_precedence) rule->precedence + 1);
@@ -179,17 +179,17 @@ static void parse_binary() {
     }
 }
 
-static void parse_group() {
+static void parse_group(bool can_assign) {
     parse_expression();
     consume_token(TOKEN_RIGHT_PAREN, "Expected ')' after expression.");
 }
 
-static void parse_number() {
+static void parse_number(bool can_assign) {
     double value = strtod(parser.previous_token.start, NULL);
     emit_constant(NUMBER_VAL(value));
 }
 
-static void parse_string() {
+static void parse_string(bool can_assign) {
     emit_constant(OBJECT_VAL(copy_string(parser.previous_token.start + 1, parser.previous_token.length - 2)));
 }
 
@@ -197,16 +197,21 @@ static uint8_t identifier_constant(lox_token *name) {
     return make_constant(OBJECT_VAL(copy_string(name->start, name->length)));
 }
 
-static void parse_named_variable(lox_token token) {
+static void parse_named_variable(lox_token token, bool can_assign) {
     uint8_t identifier = identifier_constant(&token);
-    emit_bytes(OP_GET_GLOBAL, identifier);
+    if (can_assign && match_token(TOKEN_EQUAL)) {
+        parse_expression();
+        emit_bytes(OP_SET_GLOBAL, identifier);
+    } else {
+        emit_bytes(OP_GET_GLOBAL, identifier);
+    }
 }
 
-static void parse_variable() {
-    parse_named_variable(parser.previous_token);
+static void parse_variable(bool can_assign) {
+    parse_named_variable(parser.previous_token, can_assign);
 }
 
-static void parse_unary() {
+static void parse_unary(bool can_assign) {
     lox_token_type operator = parser.previous_token.type;
     parse_precedence(PREC_UNARY);
     switch (operator) {
@@ -221,7 +226,7 @@ static void parse_unary() {
     }
 }
 
-static void parse_literal() {
+static void parse_literal(bool can_assign) {
     switch (parser.previous_token.type) {
         case TOKEN_FALSE:
             emit_byte(OP_FALSE);
@@ -287,12 +292,17 @@ static void parse_precedence(lox_precedence precedence) {
         error("Expected expression.");
         return;
     }
-    prefix_rule();
+    bool can_assign = precedence <= PREC_ASSIGNMENT;
+    prefix_rule(can_assign);
 
     while (precedence <= lookup_rule(parser.current_token.type)->precedence) {
         process_token();
         lox_parse_function infix_rule = lookup_rule(parser.previous_token.type)->infix;
-        infix_rule();
+        infix_rule(can_assign);
+    }
+
+    if (can_assign && match_token(TOKEN_EQUAL)) {
+        error("Invalid assignment target.");
     }
 }
 
