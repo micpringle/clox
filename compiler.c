@@ -193,6 +193,19 @@ static void parse_string() {
     emit_constant(OBJECT_VAL(copy_string(parser.previous_token.start + 1, parser.previous_token.length - 2)));
 }
 
+static uint8_t identifier_constant(lox_token *name) {
+    return make_constant(OBJECT_VAL(copy_string(name->start, name->length)));
+}
+
+static void parse_named_variable(lox_token token) {
+    uint8_t identifier = identifier_constant(&token);
+    emit_bytes(OP_GET_GLOBAL, identifier);
+}
+
+static void parse_variable() {
+    parse_named_variable(parser.previous_token);
+}
+
 static void parse_unary() {
     lox_token_type operator = parser.previous_token.type;
     parse_precedence(PREC_UNARY);
@@ -244,7 +257,7 @@ lox_parse_rule rules[] = {
     [TOKEN_GREATER_THAN_EQUAL] = {NULL,             parse_binary,   PREC_COMPARISON},
     [TOKEN_LESS_THAN]          = {NULL,             parse_binary,   PREC_COMPARISON},
     [TOKEN_LESS_THAN_EQUAL]    = {NULL,             parse_binary,   PREC_COMPARISON},
-    [TOKEN_IDENTIFIER]         = {NULL,             NULL,           PREC_NONE},
+    [TOKEN_IDENTIFIER]         = {parse_variable,   NULL,           PREC_NONE},
     [TOKEN_STRING]             = {parse_string,     NULL,           PREC_NONE},
     [TOKEN_NUMBER]             = {parse_number,     NULL,           PREC_NONE},
     [TOKEN_AND]                = {NULL,             NULL,           PREC_NONE},
@@ -287,11 +300,7 @@ static lox_parse_rule *lookup_rule(lox_token_type type) {
     return &rules[type];
 }
 
-static uint8_t identifier_constant(lox_token *name) {
-    return make_constant(OBJECT_VAL(copy_string(name->start, name->length)));
-}
-
-static uint8_t parse_variable(const char *message) {
+static uint8_t parse_variable_identifier(const char *message) {
     consume_token(TOKEN_IDENTIFIER, message);
     return identifier_constant(&parser.previous_token);
 }
@@ -339,7 +348,7 @@ static void parse_expression() {
 }
 
 static void parse_variable_declaration() {
-    uint8_t index = parse_variable("Expected variable name.");
+    uint8_t index = parse_variable_identifier("Expected variable name.");
 
     if (match_token(TOKEN_EQUAL)) {
         parse_expression();

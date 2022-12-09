@@ -123,6 +123,16 @@ static lox_interpret_result run() {
             case OP_POP:
                 pop_stack();
                 break;
+            case OP_GET_GLOBAL: {
+                lox_string *identifier = READ_STRING();
+                lox_value value;
+                if (!get_table_row(&v_mach.global_variables, identifier, &value)) {
+                    runtime_error("Undefined variable '%s'.", identifier->characters);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push_stack(value);
+                break;
+            }
             case OP_DEFINE_GLOBAL: {
                 lox_string *name = READ_STRING();
                 set_table_row(&v_mach.global_variables, name, peek_stack(0));
