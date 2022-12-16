@@ -207,7 +207,7 @@ static int resolveLocal(Compiler *compiler, Token *name) {
 
 static void addLocal(Token name) {
     if (current->localCount == UINT8_COUNT) {
-        error("Exceeded maximum number of local variables allowed in a single scope.")
+        error("Exceeded maximum number of local variables allowed in a single scope.");
     }
 
     Local *local = &current->locals[current->localCount++];
@@ -340,7 +340,7 @@ static void namedVariable(Token name, bool canAssign) {
 
     if (canAssign && match(TOKEN_EQUAL)) {
         expression();
-        emitBytes(setOP, (u_int8_t) arg);
+        emitBytes(setOp, (u_int8_t) arg);
     } else {
         emitBytes(getOp, (u_int8_t) arg);
     }
