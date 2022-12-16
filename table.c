@@ -97,7 +97,7 @@ void tableAddAll(Table *from, Table *to) {
         if (entry->key != NULL) {
             tableSet(to, entry->key, entry->value);
         }
-    }    
+    }
 }
 
 ObjString *tableFindString(Table *table, const char *chars, int length, uint32_t hash) {
@@ -120,7 +120,7 @@ ObjString *tableFindString(Table *table, const char *chars, int length, uint32_t
 
 bool tableDelete(Table *table, ObjString *key) {
     if (table->count == 0) return false;
-
+    
     Entry *entry = findEntry(table->entries, table->capacity, key);
     if (entry->key == NULL) return false;
 
