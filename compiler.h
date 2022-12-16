@@ -8,6 +8,6 @@
 #include "object.h"
 #include "vm.h"
 
-bool compile_source(const char *source, lox_chunk *chunk);
+bool compile(const char *source, Chunk *chunk);
 
 #endif

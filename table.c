@@ -2,130 +2,129 @@
 // Created by Mic Pringle on 08/12/2022.
 //
 
-#include "memory.h"
-#include "object.h"
-#include "value.h"
-#include "table.h"
-
 #include <stdlib.h>
 #include <string.h>
 
+#include "memory.h"
+#include "object.h"
+#include "table.h"
+#include "value.h"
+
 #define TABLE_MAX_LOAD 0.75
 
-void build_table(lox_table *table) {
+void initTable(Table *table) {
     table->capacity = 0;
     table->count = 0;
-    table->rows = NULL;
+    table->entries = NULL;
 }
 
-void purge_table(lox_table *table) {
-    FREE_ARRAY(lox_table_row, table->rows, table->capacity);
-    build_table(table);
+void freeTable(Table *table) {
+    FREE_ARRAY(Entry, table->entries, table->capacity);
+    initTable(table);
 }
 
-static lox_table_row *find_table_row(lox_table_row *rows, int capacity, lox_string *key) {
+static Entry *findEntry(Entry *entries, int capacity, ObjString *key) {
     uint32_t index = key->hash % capacity;
-    lox_table_row *tombstone = NULL;
+    Entry *tombstone = NULL;
 
     for (;;) {
-        lox_table_row *row = &rows[index];
-
-        if (row->key == NULL) {
-            if (IS_NIL(row->value)) {
-                return tombstone != NULL ? tombstone : row;
+        Entry *entry = &entries[index];
+        if (entry->key == NULL) {
+            if (IS_NIL(entry->value)) {
+                return tombstone != NULL ? tombstone : entry;
             } else {
-                if (tombstone == NULL) tombstone = row;
+                if (tombstone == NULL) tombstone = entry;
             }
-        } else if (row->key == key) {
-            return row;
+        } else if (entry->key == key) {
+            return entry;
         }
 
         index = (index + 1) % capacity;
     }
 }
 
-static void adjust_table_capacity(lox_table *table, int capacity) {
-    lox_table_row *rows = ALLOCATE(lox_table_row, capacity);
+bool tableGet(Table *table, ObjString *key, Value *value) {
+    if (table->count == 0) return false;
+
+    Entry *entry = findEntry(table->entries, table->capacity, key);
+    if (entry->key == NULL) return false;
+
+    *value = entry->value;
+    return true;
+}
+
+static void adjustCapacity(Table *table, int capacity) {
+    Entry *entries = ALLOCATE(Entry, capacity);
     for (int i = 0; i < capacity; i++) {
-        rows[i].key = NULL;
-        rows[i].value = NIL_VAL;
+        entries[i].key = NULL;
+        entries[i].value = NIL_VAL;
     }
 
     table->count = 0;
     for (int i = 0; i < table->capacity; i++) {
-        lox_table_row *old_row = &table->rows[i];
-        if (old_row->key == NULL) continue;
+        Entry *entry = &table->entries[i];
+        if (entry->key == NULL) continue;
 
-        lox_table_row *new_row = find_table_row(rows, capacity, old_row->key);
-        new_row->key = old_row->key;
-        new_row->value = old_row->value;
+        Entry *destination = findEntry(entries, capacity, entry->key);
+        destination->key = entry->key;
+        destination->value = entry->value;
         table->count++;
     }
 
-    FREE_ARRAY(lox_table_row, table->rows, table->capacity);
-
-    table->rows = rows;
+    FREE_ARRAY(Entry, table->entries, table->capacity);
+    table->entries = entries;
     table->capacity = capacity;
 }
 
-bool get_table_row(lox_table *table, lox_string *key, lox_value *value) {
-    if (table->count == 0) return false;
-
-    lox_table_row *row = find_table_row(table->rows, table->capacity, key);
-    if (row->key == NULL) return false;
-
-    *value = row->value;
-    return true;
-}
-
-bool set_table_row(lox_table *table, lox_string *key, lox_value value) {
+bool tableSet(Table *table, ObjString *key, Value value) {
     if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
         int capacity = GROW_CAPACITY(table->capacity);
-        adjust_table_capacity(table, capacity);
+        adjustCapacity(table, capacity);
     }
 
-    lox_table_row *row = find_table_row(table->rows, table->capacity, key);
-    bool is_new_key = row->key == NULL;
-    if (is_new_key && IS_NIL(row->value)) table->count++;
+    Entry *entry = findEntry(table->entries, table->capacity, key);
+    bool isNewKey = entry->key == NULL;
+    if (isNewKey && IS_NIL(entry->value)) table->count++;
 
-    row->key = key;
-    row->value = value;
-    return is_new_key;
+    entry->key = key;
+    entry->value = value;
+    return isNewKey;
 }
 
-bool rip_table_row(lox_table *table, lox_string *key) {
-    if (table->count == 0) return false;
-
-    lox_table_row *row = find_table_row(table->rows, table->capacity, key);
-    if (row->key == NULL) return false;
-
-    row->key = NULL;
-    row->value = BOOL_VAL(true);
-    return true;
-}
-
-void copy_table(lox_table *source, lox_table *destination) {
-    for (int i = 0; i < source->capacity; i++) {
-        lox_table_row *row = &source->rows[i];
-        if (row->key != NULL) {
-            set_table_row(destination, row->key, row->value);
+void tableAddAll(Table *from, Table *to) {
+    for (int i = 0; i < from->capacity; i++) {
+        Entry *entry = &from->entries[i];
+        if (entry->key != NULL) {
+            tableSet(to, entry->key, entry->value);
         }
-    }
+    }    
 }
 
-lox_string *find_table_string(lox_table *table, const char *characters, int length, uint32_t hash) {
+ObjString *tableFindString(Table *table, const char *chars, int length, uint32_t hash) {
     if (table->count == 0) return NULL;
 
     uint32_t index = hash % table->capacity;
     for (;;) {
-        lox_table_row *row = &table->rows[index];
-        if (row->key == NULL) {
-            if (IS_NIL(row->value)) return NULL;
-        } else if (row->key->length == length && row->key->hash == hash &&
-                   memcmp(row->key->characters, characters, length) == 0) {
-            return row->key;
+        Entry *entry = &table->entries[index];
+        if (entry->key == NULL) {
+            if (IS_NIL(entry->value)) return NULL;
+        } else if (entry->key->length == length &&
+                   entry->key->hash == hash &&
+                   memcmp(entry->key->chars, chars, length) == 0) {
+            return entry->key;
         }
 
         index = (index + 1) % table->capacity;
     }
+}
+
+bool tableDelete(Table *table, ObjString *key) {
+    if (table->count == 0) return false;
+
+    Entry *entry = findEntry(table->entries, table->capacity, key);
+    if (entry->key == NULL) return false;
+
+    entry->key = NULL;
+    entry->value = BOOL_VAL(true);
+    return true;
 }

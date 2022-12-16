@@ -2,40 +2,38 @@
 // Created by Mic Pringle on 03/12/2022.
 //
 
+#include <stdlib.h>
+
 #include "memory.h"
 #include "vm.h"
 
-#include <stdlib.h>
-
-void *reallocate(void *pointer, size_t old_size, size_t new_size) {
-    if (new_size == 0) {
+void *reallocate(void *pointer, size_t oldSize, size_t newSize) {
+    if (newSize == 0) {
         free(pointer);
         return NULL;
     }
 
-    void *result = realloc(pointer, new_size);
-    if (result == NULL) {
-        exit(1);
-    }
+    void *result = realloc(pointer, newSize);
+    if (result == NULL) exit(1);
     return result;
 }
 
-static void purge_object(lox_object *object) {
+static void freeObject(Obj *object) {
     switch (object->type) {
         case OBJ_STRING: {
-            lox_string *string = (lox_string *)object;
-            FREE_ARRAY(char, string->characters, string->length + 1);
-            FREE(lox_string, object);
+            ObjString *string = (ObjString *) object;
+            FREE_ARRAY(char, string->chars, string->length + 1);
+            FREE(ObjString, object);
             break;
         }
     }
 }
 
-void purge_objects() {
-    lox_object *object = v_mach.object_list_head;
+void freeObjects() {
+    Obj *object = vm.objects;
     while (object != NULL) {
-        lox_object *next_object = object->next_object;
-        purge_object(object);
-        object = next_object;
+        Obj *next = object->next;
+        freeObject(object);
+        object = next;
     }
 }

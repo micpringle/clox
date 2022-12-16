@@ -2,36 +2,36 @@
 // Created by Mic Pringle on 03/12/2022.
 //
 
-#include "value.h"
-#include "memory.h"
-#include "object.h"
-
 #include <stdio.h>
 #include <string.h>
 
-void build_value_array(lox_value_array *array) {
+#include "object.h"
+#include "memory.h"
+#include "value.h"
+
+void initValueArray(ValueArray *array) {
     array->capacity = 0;
     array->count = 0;
     array->values = NULL;
 }
 
-void write_value_array(lox_value_array *array, lox_value value) {
+void writeValueArray(ValueArray *array, Value value) {
     if (array->capacity < array->count + 1) {
-        int capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(capacity);
-        array->values = GROW_ARRAY(lox_value, array->values, capacity, array->capacity);
+        int oldCapacity = array->capacity;
+        array->capacity = GROW_CAPACITY(oldCapacity);
+        array->values = GROW_ARRAY(Value, array->values, oldCapacity, array->capacity);
     }
 
     array->values[array->count] = value;
     array->count++;
 }
 
-void purge_value_array(lox_value_array *array) {
-    FREE_ARRAY(lox_value, array->values, array->capacity);
-    build_value_array(array);
+void freeValueArray(ValueArray *array) {
+    FREE_ARRAY(Value, array->values, array->capacity);
+    initValueArray(array);
 }
 
-void print_value(lox_value value) {
+void printValue(Value value) {
     switch (value.type) {
         case VAL_BOOL:
             printf(AS_BOOL(value) ? "true" : "false");
@@ -42,23 +42,23 @@ void print_value(lox_value value) {
         case VAL_NUMBER:
             printf("%g", AS_NUMBER(value));
             break;
-        case VAL_OBJECT:
-            print_object(value);
+        case VAL_OBJ:
+            printObject(value);
             break;
     }
 }
 
-bool values_equal(lox_value lhs, lox_value rhs) {
-    if (lhs.type != rhs.type) return false;
-    switch (lhs.type) {
+bool valuesEqual(Value a, Value b) {
+    if (a.type != b.type) return false;
+    switch (a.type) {
         case VAL_BOOL:
-            return AS_BOOL(lhs) == AS_BOOL(rhs);
+            return AS_BOOL(a) == AS_BOOL(b);
         case VAL_NIL:
             return true;
         case VAL_NUMBER:
-            return AS_NUMBER(lhs) == AS_NUMBER(rhs);
-        case VAL_OBJECT:
-            return AS_OBJECT(lhs) == AS_OBJECT(rhs);
+            return AS_NUMBER(a) == AS_NUMBER(b);
+        case VAL_OBJ:
+            return AS_OBJ(a) == AS_OBJ(b);
         default:
             return false;
     }

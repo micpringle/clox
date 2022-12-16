@@ -2,69 +2,68 @@
 // Created by Mic Pringle on 07/12/2022.
 //
 
-#include "memory.h"
-#include "object.h"
-#include "value.h"
-#include "vm.h"
-#include "table.h"
-
 #include <stdio.h>
 #include <string.h>
 
-#define ALLOCATE_OBJ(type, object_type) (type *) allocate_object(sizeof(type), object_type)
+#include "memory.h"
+#include "object.h"
+#include "table.h"
+#include "value.h"
+#include "vm.h"
 
-static lox_object *allocate_object(size_t size, lox_object_type type) {
-    lox_object *object = (lox_object *) reallocate(NULL, 0, size);
+#define ALLOCATE_OBJ(type, objType) (type *) allocateObject(sizeof(type), objType)
+
+static Obj *allocateObject(size_t size, ObjType type) {
+    Obj *object = (Obj *) reallocate(NULL, 0, size);
     object->type = type;
-    object->next_object = v_mach.object_list_head;
-    v_mach.object_list_head = object;
+
+    object->next = vm.objects;
+    vm.objects = object;
+
     return object;
 }
 
-static lox_string *allocate_string(char *characters, int length, uint32_t hash) {
-    lox_string *string = ALLOCATE_OBJ(lox_string, OBJ_STRING);
+static ObjString *allocateString(char *chars, int length, uint32_t hash) {
+    ObjString *string = ALLOCATE_OBJ(ObjString, OBJ_STRING);
     string->length = length;
-    string->characters = characters;
+    string->chars = chars;
     string->hash = hash;
-    set_table_row(&v_mach.interned_strings, string, NIL_VAL);
+    tableSet(&vm.strings, string, NIL_VAL);
     return string;
 }
 
-static uint32_t hash_string(const char *characters, int length) {
+static uint32_t hashString(const char *key, int length) {
     uint32_t hash = 2166136261u;
     for (int i = 0; i < length; i++) {
-        hash ^= (uint8_t)characters[i];
+        hash ^= (uint8_t)key[i];
         hash *= 16777619;
     }
     return hash;
 }
 
-lox_string *take_string(char *characters, int length) {
-    uint32_t hash = hash_string(characters, length);
-
-    lox_string *interned = find_table_string(&v_mach.interned_strings, characters, length, hash);
+ObjString *takeString(char *chars, int length) {
+    uint32_t hash = hashString(chars, length);
+    ObjString *interned = tableFindString(&vm.strings, chars, length, hash);
     if (interned != NULL) {
-        FREE_ARRAY(char, characters, length + 1);
+        FREE_ARRAY(char, chars, length + 1);
         return interned;
     }
-
-    return allocate_string(characters, length, hash);
+    return allocateString(chars, length, hash);
 }
 
-lox_string *copy_string(const char *characters, int length) {
-    uint32_t hash = hash_string(characters, length);
-
-    lox_string *interned = find_table_string(&v_mach.interned_strings, characters, length, hash);
+ObjString *copyString(const char *chars, int length) {
+    uint32_t hash = hashString(chars, length);
+    ObjString *interned = tableFindString(&vm.strings, chars, length, hash);
     if (interned != NULL) return interned;
 
-    char *buffer = ALLOCATE(char, length + 1);
-    memcpy(buffer, characters, length);
-    buffer[length] = '\0';
-    return allocate_string(buffer, length, hash);
+    char *heapChars = ALLOCATE(char, length + 1);
+    memcpy(heapChars, chars, length);
+    heapChars[length] = '\0';
+    return allocateString(heapChars, length, hash);
 }
 
-void print_object(lox_value value) {
-    switch (OBJECT_TYPE(value)) {
+void printObject(Value value) {
+    switch (OBJ_TYPE(value)) {
         case OBJ_STRING:
             printf("%s", AS_CSTRING(value));
             break;

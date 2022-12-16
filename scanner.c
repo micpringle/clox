@@ -2,76 +2,93 @@
 // Created by Mic Pringle on 05/12/2022.
 //
 
-#include "scanner.h"
-#include "common.h"
 #include <stdio.h>
 #include <string.h>
+
+#include "common.h"
+#include "scanner.h"
 
 typedef struct {
     const char *start;
     const char *current;
-    int line_number;
-} lox_scanner;
+    int line;
+} Scanner;
 
-lox_scanner scanner;
+Scanner scanner;
 
-void build_scanner(const char *source) {
+void initScanner(const char *source) {
     scanner.start = source;
     scanner.current = source;
-    scanner.line_number = 1;
+    scanner.line = 1;
 }
 
-static bool is_finished() {
+static bool isAlpha(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
+static bool isDigit(char c) {
+    return c >= '0' && c <= '9';
+}
+
+static bool isAtEnd() {
     return *scanner.current == '\0';
 }
 
-static bool is_number(char value) {
-    return value >= '0' && value <= '9';
-}
-
-static bool is_letter(char value) {
-    return (value >= 'a' && value <= 'z') ||
-           (value >= 'A' && value <= 'Z') ||
-           value == '_';
-}
-
-static char next_character() {
+static char advance() {
     scanner.current++;
     return scanner.current[-1];
-}
-
-static bool next_character_matches(char expected) {
-    if (is_finished() || *scanner.current != expected) return false;
-    scanner.current++;
-    return true;
 }
 
 static char peek() {
     return *scanner.current;
 }
 
-static char peek_next() {
-    if (is_finished()) return '\0';
+static char peekNext() {
+    if (isAtEnd()) return '\0';
     return scanner.current[1];
 }
 
-static void ignore_whitespace() {
+static bool match(char expected) {
+    if (isAtEnd()) return false;
+    if (*scanner.current != expected) return false;
+    scanner.current++;
+    return true;
+}
+
+static Token makeToken(TokenType type) {
+    Token token;
+    token.type = type;
+    token.start = scanner.start;
+    token.length = (int) (scanner.current - scanner.start);
+    token.line = scanner.line;
+    return token;
+}
+
+static Token errorToken(const char *message) {
+    Token token;
+    token.type = TOKEN_ERROR;
+    token.start = message;
+    token.length = (int) strlen(message);
+    token.line = scanner.line;
+    return token;
+}
+
+static void skipWhitespace() {
     for (;;) {
-        char next = peek();
-        switch (next) {
+        char c = peek();
+        switch (c) {
             case ' ':
             case '\r':
             case '\t':
-                next_character();
+                advance();
                 break;
             case '\n':
-                scanner.line_number++;
-                next_character();
+                scanner.line++;
+                advance();
                 break;
             case '/':
-                if (peek_next() == '/') {
-                    while (peek() != '\n' && !is_finished())
-                        next_character();
+                if (peekNext() == '/') {
+                    while (peek() != '\n' && !isAtEnd()) advance();
                 } else {
                     return;
                 }
@@ -82,149 +99,106 @@ static void ignore_whitespace() {
     }
 }
 
-static lox_token_type check_for_keyword(int start, int length, const char *remaining, lox_token_type type) {
-    if (scanner.current - scanner.start == start + length && memcmp(scanner.start + start, remaining, length) == 0) {
+static TokenType checkKeyword(int start, int length, const char *rest, TokenType type) {
+    if (scanner.current - scanner.start == start + length &&
+        memcmp(scanner.start + start, rest, length) == 0) {
         return type;
     }
+
     return TOKEN_IDENTIFIER;
 }
 
-static lox_token_type determine_identifier_type() {
+static TokenType identifierType() {
     switch (scanner.start[0]) {
-        case 'a':
-            return check_for_keyword(1, 2, "nd", TOKEN_AND);
-        case 'c':
-            return check_for_keyword(1, 4, "lass", TOKEN_CLASS);
-        case 'e':
-            return check_for_keyword(1, 3, "lse", TOKEN_ELSE);
+        case 'a': return checkKeyword(1, 2, "nd", TOKEN_AND);
+        case 'c': return checkKeyword(1, 4, "lass", TOKEN_CLASS);
+        case 'e': return checkKeyword(1, 3, "lse", TOKEN_ELSE);
         case 'f':
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
-                    case 'a':
-                        return check_for_keyword(2, 3, "lse", TOKEN_FALSE);
-                    case 'o':
-                        return check_for_keyword(2, 1, "r", TOKEN_FOR);
-                    case 'u':
-                        return check_for_keyword(2, 1, "n", TOKEN_FUN);
+                    case 'a': return checkKeyword(2, 3, "lse", TOKEN_FALSE);
+                    case 'o': return checkKeyword(2, 1, "r", TOKEN_FOR);
+                    case 'u': return checkKeyword(2, 1, "n", TOKEN_FUN);
                 }
             }
             break;
-        case 'i':
-            return check_for_keyword(1, 1, "f", TOKEN_IF);
-        case 'n':
-            return check_for_keyword(1, 2, "il", TOKEN_NIL);
-        case 'o':
-            return check_for_keyword(1, 1, "r", TOKEN_OR);
-        case 'p':
-            return check_for_keyword(1, 4, "rint", TOKEN_PRINT);
-        case 'r':
-            return check_for_keyword(1, 5, "eturn", TOKEN_RETURN);
-        case 's':
-            return check_for_keyword(1, 4, "uper", TOKEN_SUPER);
+        case 'i': return checkKeyword(1, 1, "f", TOKEN_IF);
+        case 'n': return checkKeyword(1, 2, "il", TOKEN_NIL);
+        case 'o': return checkKeyword(1, 1, "r", TOKEN_OR);
+        case 'p': return checkKeyword(1, 4, "rint", TOKEN_PRINT);
+        case 'r': return checkKeyword(1, 5, "eturn", TOKEN_RETURN);
+        case 's': return checkKeyword(1, 4, "uper", TOKEN_SUPER);
         case 't':
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
-                    case 'h':
-                        return check_for_keyword(2, 2, "is", TOKEN_THIS);
-                    case 'r':
-                        return check_for_keyword(2, 2, "ue", TOKEN_TRUE);
+                    case 'h': return checkKeyword(2, 2, "is", TOKEN_THIS);
+                    case 'r': return checkKeyword(2, 2, "ue", TOKEN_TRUE);
                 }
             }
             break;
-        case 'v':
-            return check_for_keyword(1, 2, "ar", TOKEN_VAR);
-        case 'w':
-            return check_for_keyword(1, 4, "hile", TOKEN_WHILE);
+        case 'v': return checkKeyword(1, 2, "ar", TOKEN_VAR);
+        case 'w': return checkKeyword(1, 4, "hile", TOKEN_WHILE);
     }
+
     return TOKEN_IDENTIFIER;
 }
 
-static lox_token make_token(lox_token_type type) {
-    lox_token token;
-    token.type = type;
-    token.start = scanner.start;
-    token.length = (int) (scanner.current - scanner.start);
-    token.line_number = scanner.line_number;
-    return token;
+static Token identifier() {
+    while (isAlpha(peek()) || isDigit(peek())) advance();
+    return makeToken(identifierType());
 }
 
-static lox_token make_error_token(const char *message) {
-    lox_token token;
-    token.type = TOKEN_ERROR;
-    token.start = message;
-    token.length = (int) strlen(message);
-    token.line_number = scanner.line_number;
-    return token;
-}
+static Token number() {
+    while (isDigit(peek())) advance();
 
-static lox_token make_string_token() {
-    while (peek() != '"' && !is_finished()) {
-        if (peek() == '\n') scanner.line_number++;
-        next_character();
+    if (peek() == '.' && isDigit(peekNext())) {
+        advance();
+        while (isDigit(peek())) advance();
     }
-    if (is_finished()) return make_error_token("Unterminated string.");
-    next_character();
-    return make_token(TOKEN_STRING);
+
+    return makeToken(TOKEN_NUMBER);
 }
 
-static lox_token make_number_token() {
-    while (is_number(peek())) next_character();
-    if (peek() == '.' && is_number(peek_next())) {
-        next_character();
-        while (is_number(peek())) next_character();
+static Token string() {
+    while (peek() != '"' && !isAtEnd()) {
+        if (peek() == '\n') scanner.line++;
+        advance();
     }
-    return make_token(TOKEN_NUMBER);
+
+    if (isAtEnd()) return errorToken("Unterminated string.");
+
+    advance();
+    return makeToken(TOKEN_STRING);
 }
 
-static lox_token make_identifier_token() {
-    while (is_letter(peek()) || is_number(peek())) next_character();
-    return make_token(determine_identifier_type());
-}
-
-lox_token next_token() {
-    ignore_whitespace();
+Token scanToken() {
+    skipWhitespace();
     scanner.start = scanner.current;
-    if (is_finished()) return make_token(TOKEN_EOF);
 
-    char next = next_character();
-    if (is_letter(next)) return make_identifier_token();
-    if (is_number(next)) return make_number_token();
-    switch (next) {
-        case '(':
-            return make_token(TOKEN_LEFT_PAREN);
-        case ')':
-            return make_token(TOKEN_RIGHT_PAREN);
-        case '{':
-            return make_token(TOKEN_LEFT_BRACE);
-        case '}':
-            return make_token(TOKEN_RIGHT_BRACE);
-        case ';':
-            return make_token(TOKEN_SEMICOLON);
-        case ',':
-            return make_token(TOKEN_COMMA);
-        case '.':
-            return make_token(TOKEN_PERIOD);
-        case '-':
-            return make_token(TOKEN_MINUS);
-        case '+':
-            return make_token(TOKEN_PLUS);
-        case '/':
-            return make_token(TOKEN_SLASH);
-        case '*':
-            return make_token(TOKEN_STAR);
-        case '!':
-            return make_token(next_character_matches('=') ? TOKEN_NOT_EQUAL : TOKEN_BANG);
-        case '=':
-            return make_token(next_character_matches('=') ? TOKEN_EQUALITY : TOKEN_EQUAL);
-        case '<':
-            return make_token(next_character_matches('=') ? TOKEN_LESS_THAN_EQUAL : TOKEN_LESS_THAN);
-        case '>':
-            return make_token(next_character_matches('=') ? TOKEN_GREATER_THAN_EQUAL : TOKEN_GREATER_THAN);
-        case '"':
-            return make_string_token();
-        default:
-            break;
+    if (isAtEnd()) return makeToken(TOKEN_EOF);
+
+    char c = advance();
+    if (isAlpha(c)) return identifier();
+    if (isDigit(c)) return number();
+
+    switch (c) {
+        case '(': return makeToken(TOKEN_LEFT_PAREN);
+        case ')': return makeToken(TOKEN_RIGHT_PAREN);
+        case '{': return makeToken(TOKEN_LEFT_BRACE);
+        case '}': return makeToken(TOKEN_RIGHT_BRACE);
+        case ';': return makeToken(TOKEN_SEMICOLON);
+        case ',': return makeToken(TOKEN_COMMA);
+        case '.': return makeToken(TOKEN_DOT);
+        case '-': return makeToken(TOKEN_MINUS);
+        case '+': return makeToken(TOKEN_PLUS);
+        case '/': return makeToken(TOKEN_SLASH);
+        case '*': return makeToken(TOKEN_STAR);
+        case '!': return makeToken(match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
+        case '=': return makeToken(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
+        case '<': return makeToken(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
+        case '>': return makeToken(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
+        case '"': return string();
     }
 
-    return make_error_token("Unexpected character");
+    return errorToken("Unexpected character.");
 }

@@ -9,24 +9,28 @@
 #include "value.h"
 
 typedef struct {
-    lox_string *key;
-    lox_value value;
-} lox_table_row;
+    ObjString *key;
+    Value value;
+} Entry;
 
 typedef struct {
     int capacity;
     int count;
-    lox_table_row *rows;
-} lox_table;
+    Entry *entries;
+} Table;
 
-void build_table(lox_table *table);
-void purge_table(lox_table *table);
+void initTable(Table *table);
 
-void copy_table(lox_table *source, lox_table *destination);
-lox_string *find_table_string(lox_table *table, const char *characters, int length, uint32_t hash);
+void freeTable(Table *table);
 
-bool get_table_row(lox_table *table, lox_string *key, lox_value *value);
-bool set_table_row(lox_table *table, lox_string *key, lox_value value);
-bool rip_table_row(lox_table *table, lox_string *key);
+bool tableGet(Table *table, ObjString *key, Value *value);
+
+bool tableSet(Table *table, ObjString *key, Value value);
+
+bool tableDelete(Table *table, ObjString *key);
+
+void tableAddAll(Table *from, Table *to);
+
+ObjString *tableFindString(Table *table, const char *chars, int length, uint32_t hash);
 
 #endif

@@ -7,7 +7,8 @@
 
 #include "chunk.h"
 
-void disassemble_chunk(lox_chunk *chunk, const char *name);
-int disassemble_instruction(lox_chunk *chunk, int offset);
+void disassembleChunk(Chunk *chunk, const char *name);
+
+int disassembleInstruction(Chunk *chunk, int offset);
 
 #endif

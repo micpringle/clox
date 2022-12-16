@@ -6,35 +6,37 @@
 #define CLOX_VM_H
 
 #include "chunk.h"
-#include "value.h"
 #include "table.h"
+#include "value.h"
 
 #define STACK_MAX 256
 
 typedef struct {
-    lox_chunk *chunk;
-    uint8_t *instruction_pointer;
-    lox_value stack[STACK_MAX];
-    lox_value *stack_next;
-    lox_table global_variables;
-    lox_table interned_strings;
-    lox_object *object_list_head;
-} lox_virtual_machine;
+    Chunk *chunk;
+    uint8_t *ip;
+    Value stack[STACK_MAX];
+    Value *stackTop;
+    Table globals;
+    Table strings;
+    Obj *objects;
+} VM;
 
 typedef enum {
     INTERPRET_OK,
     INTERPRET_COMPILE_ERROR,
     INTERPRET_RUNTIME_ERROR
-} lox_interpret_result;
+} InterpretResult;
 
-extern lox_virtual_machine v_mach;
+extern VM vm;
 
-void build_virtual_machine();
-void purge_virtual_machine();
+void initVM();
 
-lox_interpret_result interpret_source(const char *source);
+void freeVM();
 
-void push_stack(lox_value value);
-lox_value pop_stack();
+InterpretResult interpret(const char *source);
+
+void push(Value value);
+
+Value pop();
 
 #endif

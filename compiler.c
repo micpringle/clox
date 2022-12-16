@@ -2,329 +2,370 @@
 // Created by Mic Pringle on 05/12/2022.
 //
 
-#include "compiler.h"
-#include "common.h"
-#include "scanner.h"
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "common.h"
+#include "compiler.h"
+#include "scanner.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
 #endif
 
 typedef struct {
-    lox_token current_token;
-    lox_token previous_token;
-    bool errored;
-    bool is_panicked;
-} lox_parser;
+    Token current;
+    Token previous;
+    bool hadError;
+    bool panicMode;
+} Parser;
 
 typedef enum {
     PREC_NONE,
-    PREC_ASSIGNMENT,
-    PREC_OR,
-    PREC_AND,
-    PREC_EQUALITY,
-    PREC_COMPARISON,
-    PREC_TERM,
-    PREC_FACTOR,
-    PREC_UNARY,
-    PREC_CALL,
+    PREC_ASSIGNMENT,  // =
+    PREC_OR,          // or
+    PREC_AND,         // and
+    PREC_EQUALITY,    // == !=
+    PREC_COMPARISON,  // < > <= >=
+    PREC_TERM,        // + -
+    PREC_FACTOR,      // * /
+    PREC_UNARY,       // ! -
+    PREC_CALL,        // . ()
     PREC_PRIMARY
-} lox_precedence;
+} Precedence;
 
-typedef void (*lox_parse_function)(bool can_assign);
+typedef void (*ParseFn)(bool canAssign);
 
 typedef struct {
-    lox_parse_function prefix;
-    lox_parse_function infix;
-    lox_precedence precedence;
-} lox_parse_rule;
+    ParseFn prefix;
+    ParseFn infix;
+    Precedence precedence;
+} ParseRule;
 
-lox_parser parser;
-lox_chunk *compiling_chunk;
+Parser parser;
+Chunk *compilingChunk;
 
-static void parse_expression();
-static void parse_declaration();
-static void parse_statement();
-static lox_parse_rule *lookup_rule(lox_token_type type);
-static void parse_precedence(lox_precedence precedence);
-
-static lox_chunk *current_chunk() {
-    return compiling_chunk;
+static Chunk *currentChunk() {
+    return compilingChunk;
 }
 
-static void error_at(lox_token *token, const char *message) {
-    if (parser.is_panicked) return;
-    parser.is_panicked = true;
-    fprintf(stderr, "[line %d] error", token->line_number);
+static void errorAt(Token *token, const char *message) {
+    if (parser.panicMode) return;
+    parser.panicMode = true;
+    fprintf(stderr, "[line %d] Error", token->line);
+
     if (token->type == TOKEN_EOF) {
         fprintf(stderr, " at end");
     } else if (token->type == TOKEN_ERROR) {
-        // Do nothing, for now?
+        // Nothing.
     } else {
         fprintf(stderr, " at '%.*s'", token->length, token->start);
     }
-    fprintf(stderr, ": %s\n", message);
-    parser.errored = true;
-}
 
-static void error_at_current(const char *message) {
-    error_at(&parser.current_token, message);
+    fprintf(stderr, ": %s\n", message);
+    parser.hadError = true;
 }
 
 static void error(const char *message) {
-    error_at(&parser.previous_token, message);
+    errorAt(&parser.previous, message);
 }
 
-static void process_token() {
-    parser.previous_token = parser.current_token;
+static void errorAtCurrent(const char *message) {
+    errorAt(&parser.current, message);
+}
+
+static void advance() {
+    parser.previous = parser.current;
+
     for (;;) {
-        parser.current_token = next_token();
-        if (parser.current_token.type != TOKEN_ERROR) break;
-        error_at_current(parser.current_token.start);
+        parser.current = scanToken();
+        if (parser.current.type != TOKEN_ERROR) break;
+
+        errorAtCurrent(parser.current.start);
     }
 }
 
-static void consume_token(lox_token_type type, const char *message) {
-    if (parser.current_token.type == type) {
-        process_token();
+static void consume(TokenType type, const char *message) {
+    if (parser.current.type == type) {
+        advance();
         return;
     }
-    error_at_current(message);
+
+    errorAtCurrent(message);
 }
 
-static bool check_token_type(lox_token_type type) {
-    return parser.current_token.type == type;
+static bool check(TokenType type) {
+    return parser.current.type == type;
 }
 
-static bool match_token(lox_token_type type) {
-    if (!check_token_type(type)) return false;
-    process_token();
+static bool match(TokenType type) {
+    if (!check(type)) return false;
+    advance();
     return true;
 }
 
-static void emit_byte(uint8_t op_code) {
-    write_chunk(current_chunk(), op_code, parser.previous_token.line_number);
+static void emitByte(uint8_t byte) {
+    writeChunk(currentChunk(), byte, parser.previous.line);
 }
 
-static void emit_bytes(uint8_t op_code, uint8_t operand) {
-    emit_byte(op_code);
-    emit_byte(operand);
+static void emitBytes(uint8_t byte1, uint8_t byte2) {
+    emitByte(byte1);
+    emitByte(byte2);
 }
 
-static void emit_return() {
-    emit_byte(OP_RETURN);
+static void emitReturn() {
+    emitByte(OP_RETURN);
 }
 
-static uint8_t make_constant(lox_value value) {
-    int index = add_constant(current_chunk(), value);
-    if (index > UINT8_MAX) {
-        error("Too many constants in a single chunk.");
+static uint8_t makeConstant(Value value) {
+    int constant = addConstant(currentChunk(), value);
+    if (constant > UINT8_MAX) {
+        error("Exceeded maximum number of constants allowed in a single chunk.");
         return 0;
     }
-    return (u_int8_t) index;
+
+    return (uint8_t) constant;
 }
 
-static void emit_constant(lox_value value) {
-    emit_bytes(OP_CONSTANT, make_constant(value));
+static void emitConstant(Value value) {
+    emitBytes(OP_CONSTANT, makeConstant(value));
 }
 
-static void finish_compilation() {
-    emit_return();
+static void endCompiler() {
+    emitReturn();
 #ifdef DEBUG_PRINT_CODE
-    if (!parser.errored) {
-        disassemble_chunk(current_chunk(), "code");
+    if (!parser.hadError) {
+        disassembleChunk(currentChunk(), "Code");
     }
 #endif
 }
 
-static void parse_binary(bool can_assign) {
-    lox_token_type operator = parser.previous_token.type;
-    lox_parse_rule *rule = lookup_rule(operator);
-    parse_precedence((lox_precedence) rule->precedence + 1);
-    switch (operator) {
-        case TOKEN_NOT_EQUAL:
-            emit_bytes(OP_EQUAL, OP_NOT);
+static void expression();
+static void statement();
+static void declaration();
+static ParseRule *getRule(TokenType type);
+static void parsePrecedence(Precedence precedence);
+
+static uint8_t identifierConstant(Token *name) {
+    return makeConstant(OBJ_VAL(copyString(name->start, name->length)));
+}
+
+static uint8_t parseVariable(const char *message) {
+    consume(TOKEN_IDENTIFIER, message);
+    return identifierConstant(&parser.previous);
+}
+
+static void defineVariable(uint8_t global) {
+    emitBytes(OP_DEFINE_GLOBAL, global);
+}
+
+static void binary(bool canAssign) {
+    TokenType operatorType = parser.previous.type;
+    ParseRule *rule = getRule(operatorType);
+    parsePrecedence((Precedence) (rule->precedence + 1));
+
+    switch (operatorType) {
+        case TOKEN_BANG_EQUAL:
+            emitBytes(OP_EQUAL, OP_NOT);
             break;
-        case TOKEN_EQUALITY:
-            emit_byte(OP_EQUAL);
+        case TOKEN_EQUAL_EQUAL:
+            emitByte(OP_EQUAL);
             break;
-        case TOKEN_GREATER_THAN:
-            emit_byte(OP_GREATER);
+        case TOKEN_GREATER:
+            emitByte(OP_GREATER);
             break;
-        case TOKEN_GREATER_THAN_EQUAL:
-            emit_bytes(OP_LESS, OP_NOT);
+        case TOKEN_GREATER_EQUAL:
+            emitBytes(OP_LESS, OP_NOT);
             break;
-        case TOKEN_LESS_THAN:
-            emit_byte(OP_LESS);
+        case TOKEN_LESS:
+            emitByte(OP_LESS);
             break;
-        case TOKEN_LESS_THAN_EQUAL:
-            emit_bytes(OP_GREATER, OP_NOT);
+        case TOKEN_LESS_EQUAL:
+            emitBytes(OP_GREATER, OP_NOT);
             break;
         case TOKEN_PLUS:
-            emit_byte(OP_ADD);
+            emitByte(OP_ADD);
             break;
         case TOKEN_MINUS:
-            emit_byte(OP_SUBTRACT);
+            emitByte(OP_SUBTRACT);
             break;
         case TOKEN_STAR:
-            emit_byte(OP_MULTIPLY);
+            emitByte(OP_MULTIPLY);
             break;
         case TOKEN_SLASH:
-            emit_byte(OP_DIVIDE);
+            emitByte(OP_DIVIDE);
             break;
         default:
             return;
     }
 }
 
-static void parse_group(bool can_assign) {
-    parse_expression();
-    consume_token(TOKEN_RIGHT_PAREN, "Expected ')' after expression.");
-}
-
-static void parse_number(bool can_assign) {
-    double value = strtod(parser.previous_token.start, NULL);
-    emit_constant(NUMBER_VAL(value));
-}
-
-static void parse_string(bool can_assign) {
-    emit_constant(OBJECT_VAL(copy_string(parser.previous_token.start + 1, parser.previous_token.length - 2)));
-}
-
-static uint8_t identifier_constant(lox_token *name) {
-    return make_constant(OBJECT_VAL(copy_string(name->start, name->length)));
-}
-
-static void parse_named_variable(lox_token token, bool can_assign) {
-    uint8_t identifier = identifier_constant(&token);
-    if (can_assign && match_token(TOKEN_EQUAL)) {
-        parse_expression();
-        emit_bytes(OP_SET_GLOBAL, identifier);
-    } else {
-        emit_bytes(OP_GET_GLOBAL, identifier);
-    }
-}
-
-static void parse_variable(bool can_assign) {
-    parse_named_variable(parser.previous_token, can_assign);
-}
-
-static void parse_unary(bool can_assign) {
-    lox_token_type operator = parser.previous_token.type;
-    parse_precedence(PREC_UNARY);
-    switch (operator) {
-        case TOKEN_BANG:
-            emit_byte(OP_NOT);
-            break;
-        case TOKEN_MINUS:
-            emit_byte(OP_NEGATE);
-            break;
-        default:
-            return;
-    }
-}
-
-static void parse_literal(bool can_assign) {
-    switch (parser.previous_token.type) {
+static void literal(bool canAssign) {
+    switch (parser.previous.type) {
         case TOKEN_FALSE:
-            emit_byte(OP_FALSE);
+            emitByte(OP_FALSE);
             break;
         case TOKEN_NIL:
-            emit_byte(OP_NIL);
+            emitByte(OP_NIL);
             break;
         case TOKEN_TRUE:
-            emit_byte(OP_TRUE);
+            emitByte(OP_TRUE);
             break;
         default:
             return;
     }
 }
 
-lox_parse_rule rules[] = {
-    [TOKEN_LEFT_PAREN]         = {parse_group,      NULL,           PREC_NONE},
-    [TOKEN_RIGHT_PAREN]        = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_LEFT_BRACE]         = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_RIGHT_BRACE]        = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_COMMA]              = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_PERIOD]             = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_MINUS]              = {parse_unary,      parse_binary,   PREC_TERM},
-    [TOKEN_PLUS]               = {NULL,             parse_binary,   PREC_TERM},
-    [TOKEN_SEMICOLON]          = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_SLASH]              = {NULL,             parse_binary,   PREC_FACTOR},
-    [TOKEN_STAR]               = {NULL,             parse_binary,   PREC_FACTOR},
-    [TOKEN_BANG]               = {parse_unary,      NULL,           PREC_NONE},
-    [TOKEN_NOT_EQUAL]          = {NULL,             parse_binary,   PREC_EQUALITY},
-    [TOKEN_EQUAL]              = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_EQUALITY]           = {NULL,             parse_binary,   PREC_EQUALITY},
-    [TOKEN_GREATER_THAN]       = {NULL,             parse_binary,   PREC_COMPARISON},
-    [TOKEN_GREATER_THAN_EQUAL] = {NULL,             parse_binary,   PREC_COMPARISON},
-    [TOKEN_LESS_THAN]          = {NULL,             parse_binary,   PREC_COMPARISON},
-    [TOKEN_LESS_THAN_EQUAL]    = {NULL,             parse_binary,   PREC_COMPARISON},
-    [TOKEN_IDENTIFIER]         = {parse_variable,   NULL,           PREC_NONE},
-    [TOKEN_STRING]             = {parse_string,     NULL,           PREC_NONE},
-    [TOKEN_NUMBER]             = {parse_number,     NULL,           PREC_NONE},
-    [TOKEN_AND]                = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_CLASS]              = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_ELSE]               = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_FALSE]              = {parse_literal,    NULL,           PREC_NONE},
-    [TOKEN_FOR]                = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_FUN]                = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_IF]                 = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_NIL]                = {parse_literal,    NULL,           PREC_NONE},
-    [TOKEN_OR]                 = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_PRINT]              = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_RETURN]             = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_SUPER]              = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_THIS]               = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_TRUE]               = {parse_literal,    NULL,           PREC_NONE},
-    [TOKEN_VAR]                = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_WHILE]              = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_ERROR]              = {NULL,             NULL,           PREC_NONE},
-    [TOKEN_EOF]                = {NULL,             NULL,           PREC_NONE}
+static void grouping(bool canAssign) {
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expected ')' after expression.");
+}
+
+static void number(bool canAssign) {
+    double value = strtod(parser.previous.start, NULL);
+    emitConstant(NUMBER_VAL(value));
+}
+
+static void string(bool canAssign) {
+    emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
+}
+
+static void namedVariable(Token name, bool canAssign) {
+    uint8_t arg = identifierConstant(&name);
+
+    if (canAssign && match(TOKEN_EQUAL)) {
+        expression();
+        emitBytes(OP_SET_GLOBAL, arg);
+    } else {
+        emitBytes(OP_GET_GLOBAL, arg);
+    }
+}
+
+static void variable(bool canAssign) {
+    namedVariable(parser.previous, canAssign);
+}
+
+static void unary(bool canAssign) {
+    TokenType operatorType = parser.previous.type;
+
+    parsePrecedence(PREC_UNARY);
+
+    switch (operatorType) {
+        case TOKEN_BANG:
+            emitByte(OP_NOT);
+            break;
+        case TOKEN_MINUS:
+            emitByte(OP_NEGATE);
+            break;
+        default:
+            return;
+    }
+}
+
+ParseRule rules[] = {
+        [TOKEN_LEFT_PAREN]    = {grouping, NULL,   PREC_NONE},
+        [TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_DOT]           = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_MINUS]         = {unary,    binary, PREC_TERM},
+        [TOKEN_PLUS]          = {NULL,     binary, PREC_TERM},
+        [TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_SLASH]         = {NULL,     binary, PREC_FACTOR},
+        [TOKEN_STAR]          = {NULL,     binary, PREC_FACTOR},
+        [TOKEN_BANG]          = {unary,    NULL,   PREC_NONE},
+        [TOKEN_BANG_EQUAL]    = {NULL,     binary, PREC_EQUALITY},
+        [TOKEN_EQUAL]         = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_EQUAL_EQUAL]   = {NULL,     binary, PREC_EQUALITY},
+        [TOKEN_GREATER]       = {NULL,     binary, PREC_COMPARISON},
+        [TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
+        [TOKEN_LESS]          = {NULL,     binary, PREC_COMPARISON},
+        [TOKEN_LESS_EQUAL]    = {NULL,     binary, PREC_COMPARISON},
+        [TOKEN_IDENTIFIER]    = {variable, NULL,   PREC_NONE},
+        [TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
+        [TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
+        [TOKEN_AND]           = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_FALSE]         = {literal,  NULL,   PREC_NONE},
+        [TOKEN_FOR]           = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_FUN]           = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},
+        [TOKEN_OR]            = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_THIS]          = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
+        [TOKEN_VAR]           = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_ERROR]         = {NULL,     NULL,   PREC_NONE},
+        [TOKEN_EOF]           = {NULL,     NULL,   PREC_NONE},
 };
 
-static void parse_precedence(lox_precedence precedence) {
-    process_token();
-    lox_parse_function prefix_rule = lookup_rule(parser.previous_token.type)->prefix;
-    if (prefix_rule == NULL) {
+static void parsePrecedence(Precedence precedence) {
+    advance();
+    ParseFn prefixRule = getRule(parser.previous.type)->prefix;
+    if (prefixRule == NULL) {
         error("Expected expression.");
         return;
     }
-    bool can_assign = precedence <= PREC_ASSIGNMENT;
-    prefix_rule(can_assign);
 
-    while (precedence <= lookup_rule(parser.current_token.type)->precedence) {
-        process_token();
-        lox_parse_function infix_rule = lookup_rule(parser.previous_token.type)->infix;
-        infix_rule(can_assign);
+    bool canAssign = precedence <= PREC_ASSIGNMENT;
+    prefixRule(canAssign);
+
+    while (precedence <= getRule(parser.current.type)->precedence) {
+        advance();
+        ParseFn infixRule = getRule(parser.previous.type)->infix;
+        infixRule(canAssign);
     }
 
-    if (can_assign && match_token(TOKEN_EQUAL)) {
+    if (canAssign && match(TOKEN_EQUAL)) {
         error("Invalid assignment target.");
     }
 }
 
-static lox_parse_rule *lookup_rule(lox_token_type type) {
+static ParseRule *getRule(TokenType type) {
     return &rules[type];
 }
 
-static uint8_t parse_variable_identifier(const char *message) {
-    consume_token(TOKEN_IDENTIFIER, message);
-    return identifier_constant(&parser.previous_token);
+static void expression() {
+    parsePrecedence(PREC_ASSIGNMENT);
 }
 
-static void define_variable(uint8_t index) {
-    emit_bytes(OP_DEFINE_GLOBAL, index);
+static void varDeclaration() {
+    uint8_t global = parseVariable("Expected variable name.");
+
+    if (match(TOKEN_EQUAL)) {
+        expression();
+    } else {
+        emitByte(OP_NIL);
+    }
+    consume(TOKEN_SEMICOLON, "Expected ';' after variable declaration.");
+
+    defineVariable(global);
+}
+
+static void expressionStatement() {
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+    emitByte(OP_POP);
+}
+
+static void printStatement() {
+    expression();
+    consume(TOKEN_SEMICOLON, "Expected ';' after value.");
+    emitByte(OP_PRINT);
 }
 
 static void synchronize() {
-    parser.is_panicked = false;
+    parser.panicMode = false;
 
-    while (parser.current_token.type != TOKEN_EOF) {
-        if (parser.previous_token.type == TOKEN_SEMICOLON) return;
-        switch (parser.current_token.type) {
+    while (parser.current.type != TOKEN_EOF) {
+        if (parser.previous.type == TOKEN_SEMICOLON) return;
+        switch (parser.current.type) {
             case TOKEN_CLASS:
             case TOKEN_FUN:
             case TOKEN_VAR:
@@ -334,72 +375,44 @@ static void synchronize() {
             case TOKEN_PRINT:
             case TOKEN_RETURN:
                 return;
-            default:
-                ; // Do nothing.
+            default:;
         }
-        process_token();
+
+        advance();
     }
 }
 
-static void parse_expression_statement() {
-    parse_expression();
-    consume_token(TOKEN_SEMICOLON, "Expected ';' after expression.");
-    emit_byte(OP_POP);
-}
-
-static void parse_print_statement() {
-    parse_expression();
-    consume_token(TOKEN_SEMICOLON, "Expected ';' after value.");
-    emit_byte(OP_PRINT);
-}
-
-static void parse_expression() {
-    parse_precedence(PREC_ASSIGNMENT);
-}
-
-static void parse_variable_declaration() {
-    uint8_t index = parse_variable_identifier("Expected variable name.");
-
-    if (match_token(TOKEN_EQUAL)) {
-        parse_expression();
+static void declaration() {
+    if (match(TOKEN_VAR)) {
+        varDeclaration();
     } else {
-        emit_byte(OP_NIL);
+        statement();
     }
 
-    consume_token(TOKEN_SEMICOLON, "Expected ';' after variable declaration.");
-    define_variable(index);
+    if (parser.panicMode) synchronize();
 }
 
-static void parse_declaration() {
-    if (match_token(TOKEN_VAR)) {
-        parse_variable_declaration();
+static void statement() {
+    if (match(TOKEN_PRINT)) {
+        printStatement();
     } else {
-        parse_statement();
-    }
-
-    if (parser.is_panicked) synchronize();
-}
-
-static void parse_statement() {
-    if (match_token(TOKEN_PRINT)) {
-        parse_print_statement();
-    } else {
-        parse_expression_statement();
+        expressionStatement();
     }
 }
 
-bool compile_source(const char *source, lox_chunk *chunk) {
-    build_scanner(source);
-    compiling_chunk = chunk;
-    parser.errored = false;
-    parser.is_panicked = false;
+bool compile(const char *source, Chunk *chunk) {
+    initScanner(source);
+    compilingChunk = chunk;
 
-    process_token();
+    parser.hadError = false;
+    parser.panicMode = false;
 
-    while (!match_token(TOKEN_EOF)) {
-        parse_declaration();
+    advance();
+
+    while (!match(TOKEN_EOF)) {
+        declaration();
     }
 
-    finish_compilation();
-    return !parser.errored;
+    endCompiler();
+    return !parser.hadError;
 }

@@ -7,51 +7,53 @@
 
 #include "common.h"
 
-typedef struct lox_object lox_object;
-typedef struct lox_string lox_string;
+typedef struct Obj Obj;
+typedef struct ObjString ObjString;
 
 typedef enum {
     VAL_BOOL,
     VAL_NIL,
     VAL_NUMBER,
-    VAL_OBJECT
-} lox_value_type;
+    VAL_OBJ
+} ValueType;
 
 typedef struct {
-    lox_value_type type;
+    ValueType type;
     union {
         bool boolean;
         double number;
-        lox_object *object;
+        Obj *obj;
     } as;
-} lox_value;
+} Value;
 
 #define IS_BOOL(value) ((value).type == VAL_BOOL)
 #define IS_NIL(value) ((value).type == VAL_NIL)
 #define IS_NUMBER(value) ((value).type == VAL_NUMBER)
-#define IS_OBJECT(value) ((value).type == VAL_OBJECT)
+#define IS_OBJ(value) ((value).type == VAL_OBJ)
 
+#define AS_OBJ(value) ((value).as.obj)
 #define AS_BOOL(value) ((value).as.boolean)
 #define AS_NUMBER(value) ((value).as.number)
-#define AS_OBJECT(value) ((value).as.object)
 
-#define BOOL_VAL(value) ((lox_value){VAL_BOOL, {.boolean = value}})
-#define NIL_VAL ((lox_value){VAL_NIL, {.number = 0}})
-#define NUMBER_VAL(value) ((lox_value){VAL_NUMBER, {.number = value}})
-#define OBJECT_VAL(value) ((lox_value){VAL_OBJECT, {.object = (lox_object *)value}})
+#define BOOL_VAL(value) ((Value) {VAL_BOOL, {.boolean = value}})
+#define NIL_VAL ((Value) {VAL_NIL, {.number = 0}})
+#define NUMBER_VAL(value) ((Value) {VAL_NUMBER, {.number = value}})
+#define OBJ_VAL(object) ((Value) {VAL_OBJ, {.obj = (Obj *) object}})
 
 typedef struct {
     int capacity;
     int count;
-    lox_value *values;
-} lox_value_array;
+    Value *values;
+} ValueArray;
 
-bool values_equal(lox_value lhs, lox_value rhs);
+bool valuesEqual(Value a, Value b);
 
-void build_value_array(lox_value_array *array);
-void write_value_array(lox_value_array *array, lox_value value);
-void purge_value_array(lox_value_array *array);
+void initValueArray(ValueArray *array);
 
-void print_value(lox_value value);
+void writeValueArray(ValueArray *array, Value value);
+
+void freeValueArray(ValueArray *array);
+
+void printValue(Value value);
 
 #endif

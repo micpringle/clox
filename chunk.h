@@ -27,21 +27,23 @@ typedef enum {
     OP_NOT,
     OP_NEGATE,
     OP_PRINT,
-    OP_RETURN
-} lox_op_code;
+    OP_RETURN,
+} OpCode;
 
 typedef struct {
     int capacity;
     int count;
     uint8_t *code;
-    int *line_numbers;
-    lox_value_array constants;
-} lox_chunk;
+    int *lines;
+    ValueArray constants;
+} Chunk;
 
-void build_chunk(lox_chunk *chunk);
-void purge_chunk(lox_chunk *chunk);
-void write_chunk(lox_chunk *chunk, uint8_t byte, int line_number);
+void initChunk(Chunk *chunk);
 
-int add_constant(lox_chunk *chunk, lox_value constant);
+void freeChunk(Chunk *chunk);
+
+void writeChunk(Chunk *chunk, uint8_t byte, int line);
+
+int addConstant(Chunk *chunk, Value value);
 
 #endif

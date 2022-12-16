@@ -2,6 +2,10 @@
 // Created by Mic Pringle on 03/12/2022.
 //
 
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+
 #include "common.h"
 #include "compiler.h"
 #include "debug.h"
@@ -9,149 +13,145 @@
 #include "memory.h"
 #include "vm.h"
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
+VM vm;
 
-lox_virtual_machine v_mach;
-
-static void reset_stack() {
-    v_mach.stack_next = v_mach.stack;
+static void resetStack() {
+    vm.stackTop = vm.stack;
 }
 
-static void runtime_error(const char *format, ...) {
+static void runtimeError(const char *format, ...) {
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
     va_end(args);
     fputs("\n", stderr);
 
-    size_t instruction = v_mach.instruction_pointer - v_mach.chunk->code - 1;
-    int line_number = v_mach.chunk->line_numbers[instruction];
-    fprintf(stderr, "[line %d] in source\n", line_number);
-    reset_stack();
+    size_t instruction = vm.ip - vm.chunk->code - 1;
+    int line = vm.chunk->lines[instruction];
+    fprintf(stderr, "[line %d] in script\n", line);
+    resetStack();
 }
 
-void build_virtual_machine() {
-    reset_stack();
-    v_mach.object_list_head = NULL;
-    build_table(&v_mach.global_variables);
-    build_table(&v_mach.interned_strings);
+void initVM() {
+    resetStack();
+    vm.objects = NULL;
+
+    initTable(&vm.globals);
+    initTable(&vm.strings);
 }
 
-void purge_virtual_machine() {
-    purge_table(&v_mach.global_variables);
-    purge_table(&v_mach.interned_strings);
-    purge_objects();
+void freeVM() {
+    freeTable(&vm.globals);
+    freeTable(&vm.strings);
+    freeObjects();
 }
 
-void push_stack(lox_value value) {
-    *v_mach.stack_next = value;
-    v_mach.stack_next++;
+void push(Value value) {
+    *vm.stackTop = value;
+    vm.stackTop++;
 }
 
-lox_value pop_stack() {
-    v_mach.stack_next--;
-    return *v_mach.stack_next;
+Value pop() {
+    vm.stackTop--;
+    return *vm.stackTop;
 }
 
-static lox_value peek_stack(int distance) {
-    return v_mach.stack_next[-1 - distance];
+static Value peek(int distance) {
+    return vm.stackTop[-1 - distance];
 }
 
-static bool is_falsey(lox_value value) {
+static bool isFalsey(Value value) {
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
-static void concatenate_strings() {
-    lox_string *rhs = AS_STRING(pop_stack());
-    lox_string *lhs = AS_STRING(pop_stack());
+static void concatenate() {
+    ObjString *b = AS_STRING(pop());
+    ObjString *a = AS_STRING(pop());
 
-    int length = lhs->length + rhs->length;
-    char *characters = ALLOCATE(char, length + 1);
-    memcpy(characters, lhs->characters, lhs->length);
-    memcpy(characters + lhs->length, rhs->characters, rhs->length);
-    characters[length] = '\0';
+    int length = a->length + b->length;
+    char *chars = ALLOCATE(char, length + 1);
+    memcpy(chars, a->chars, a->length);
+    memcpy(chars + a->length, b->chars, b->length);
+    chars[length] = '\0';
 
-    lox_string *result = take_string(characters, length);
-    push_stack(OBJECT_VAL(result));
+    ObjString *result = takeString(chars, length);
+    push(OBJ_VAL(result));
 }
 
-static lox_interpret_result run() {
-#define READ_BYTE() (*v_mach.instruction_pointer++)
-#define READ_CONSTANT() (v_mach.chunk->constants.values[READ_BYTE()])
+static InterpretResult run() {
+#define READ_BYTE() (*vm.ip++)
+#define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
 #define READ_STRING() AS_STRING(READ_CONSTANT())
-#define BINARY_OP(value_type, op)                                     \
-    do {                                                              \
-        if (!IS_NUMBER(peek_stack(0)) || !IS_NUMBER(peek_stack(1))) { \
-            runtime_error("Operands must be numbers.");               \
-            return INTERPRET_RUNTIME_ERROR;                           \
-        }                                                             \
-        double b = AS_NUMBER(pop_stack());                            \
-        double a = AS_NUMBER(pop_stack());                            \
-        push_stack(value_type(a op b));                               \
-    } while (false)
+#define BINARY_OP(valueType, op)                        \
+do {                                                    \
+    if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) {   \
+        runtimeError("Operands must be numbers.");      \
+        return INTERPRET_RUNTIME_ERROR;                 \
+    }                                                   \
+    double b = AS_NUMBER(pop());                        \
+    double a = AS_NUMBER(pop());                        \
+    push(valueType(a op b));                            \
+} while (false)
 
     for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
-        printf(" ");
-        for (lox_value *value = v_mach.stack; value < v_mach.stack_next; value++) {
+        printf("          ");
+        for (Value *slot = vm.stack; slot < vm.stackTop; slot++) {
             printf("[ ");
-            print_value(*value);
+            printValue(*slot);
             printf(" ]");
         }
         printf("\n");
-        disassemble_instruction(v_mach.chunk, (int) (v_mach.instruction_pointer - v_mach.chunk->code));
+        disassembleInstruction(vm.chunk, (int)(vm.ip - vm.chunk->code));
 #endif
-
         uint8_t instruction;
         switch (instruction = READ_BYTE()) {
             case OP_CONSTANT: {
-                lox_value constant = READ_CONSTANT();
-                push_stack(constant);
+                Value constant = READ_CONSTANT();
+                push(constant);
                 break;
             }
             case OP_NIL:
-                push_stack(NIL_VAL);
+                push(NIL_VAL);
                 break;
             case OP_TRUE:
-                push_stack(BOOL_VAL(true));
+                push(BOOL_VAL(true));
                 break;
             case OP_FALSE:
-                push_stack(BOOL_VAL(false));
+                push(BOOL_VAL(false));
                 break;
             case OP_POP:
-                pop_stack();
+                pop();
                 break;
             case OP_GET_GLOBAL: {
-                lox_string *identifier = READ_STRING();
-                lox_value value;
-                if (!get_table_row(&v_mach.global_variables, identifier, &value)) {
-                    runtime_error("Undefined variable '%s'.", identifier->characters);
+                ObjString *name = READ_STRING();
+                Value value;
+                if (!tableGet(&vm.globals, name, &value)) {
+                    runtimeError("Undefined variable '%s'.", name->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push_stack(value);
+                push(value);
                 break;
             }
             case OP_DEFINE_GLOBAL: {
-                lox_string *name = READ_STRING();
-                set_table_row(&v_mach.global_variables, name, peek_stack(0));
-                pop_stack();
+                ObjString *name = READ_STRING();
+                tableSet(&vm.globals, name, peek(0));
+                pop();
                 break;
             }
             case OP_SET_GLOBAL: {
-                lox_string *identifier = READ_STRING();
-                if (set_table_row(&v_mach.global_variables, identifier, peek_stack(0))) {
-                    rip_table_row(&v_mach.global_variables, identifier);
-                    runtime_error("Undefined variable '%s'.", identifier->characters);
+                ObjString *name = READ_STRING();
+                if (tableSet(&vm.globals, name, peek(0))) {
+                    tableDelete(&vm.globals, name);
+                    runtimeError("Undefined variable '%s'.", name->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
             }
             case OP_EQUAL: {
-                lox_value rhs = pop_stack();
-                lox_value lhs = pop_stack();
-                push_stack(BOOL_VAL(values_equal(lhs, rhs)));
+                Value b = pop();
+                Value a = pop();
+                push(BOOL_VAL(valuesEqual(a, b)));
                 break;
             }
             case OP_GREATER:
@@ -160,19 +160,18 @@ static lox_interpret_result run() {
             case OP_LESS:
                 BINARY_OP(BOOL_VAL, <);
                 break;
-            case OP_ADD: {
-                if (IS_STRING(peek_stack(0)) && IS_STRING(peek_stack(1))) {
-                    concatenate_strings();
-                } else if (IS_NUMBER(peek_stack(0)) && IS_NUMBER(peek_stack(1))) {
-                    double rhs = AS_NUMBER(pop_stack());
-                    double lhs = AS_NUMBER(pop_stack());
-                    push_stack(NUMBER_VAL(lhs + rhs));
+            case OP_ADD:
+                if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
+                    concatenate();
+                } else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
+                    double b = AS_NUMBER(pop());
+                    double a = AS_NUMBER(pop());
+                    push(NUMBER_VAL(a + b));
                 } else {
-                    runtime_error("Operands must be two numbers or two interned_strings.");
+                    runtimeError("Operands must be two numbers or two strings.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
-            }
             case OP_SUBTRACT:
                 BINARY_OP(NUMBER_VAL, -);
                 break;
@@ -183,45 +182,48 @@ static lox_interpret_result run() {
                 BINARY_OP(NUMBER_VAL, /);
                 break;
             case OP_NOT:
-                push_stack(BOOL_VAL(is_falsey(pop_stack())));
+                push(BOOL_VAL(isFalsey(pop())));
                 break;
             case OP_NEGATE:
-                if (!IS_NUMBER(peek_stack(0))) {
-                    runtime_error("Operand must be a number.");
+                if (!IS_NUMBER(peek(0))) {
+                    runtimeError("Operand must be a number.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push_stack(NUMBER_VAL(-AS_NUMBER(pop_stack())));
+                if (AS_NUMBER(peek(0)) != 0) {
+                    push(NUMBER_VAL(-AS_NUMBER(pop())));
+                }
                 break;
             case OP_PRINT: {
-                print_value(pop_stack());
+                printValue(pop());
                 printf("\n");
                 break;
             }
-            case OP_RETURN:
+            case OP_RETURN: {
                 return INTERPRET_OK;
+            }
         }
     }
 
-#undef BINARY_OP
-#undef READ_STRING
-#undef READ_CONSTANT
 #undef READ_BYTE
+#undef READ_CONSTANT
+#undef READ_STRING
+#undef BINARY_OP
 }
 
-lox_interpret_result interpret_source(const char *source) {
-    lox_chunk chunk;
-    build_chunk(&chunk);
+InterpretResult interpret(const char *source) {
+    Chunk chunk;
+    initChunk(&chunk);
 
-    if (!compile_source(source, &chunk)) {
-        purge_chunk(&chunk);
+    if (!compile(source, &chunk)) {
+        freeChunk(&chunk);
         return INTERPRET_COMPILE_ERROR;
     }
 
-    v_mach.chunk = &chunk;
-    v_mach.instruction_pointer = v_mach.chunk->code;
+    vm.chunk = &chunk;
+    vm.ip = vm.chunk->code;
 
-    lox_interpret_result result = run();
+    InterpretResult result = run();
 
-    purge_chunk(&chunk);
+    freeChunk(&chunk);
     return result;
 }

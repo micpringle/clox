@@ -8,35 +8,37 @@
 #include "common.h"
 #include "value.h"
 
-#define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
+#define OBJ_TYPE(value) (AS_OBJ(value)->type)
 
-#define IS_STRING(value) is_object_type(value, OBJ_STRING)
+#define IS_STRING(value) isObjType(value, OBJ_STRING)
 
-#define AS_STRING(value) ((lox_string *)AS_OBJECT(value))
-#define AS_CSTRING(value) (((lox_string *)AS_OBJECT(value))->characters)
+#define AS_STRING(value) ((ObjString *) AS_OBJ(value))
+#define AS_CSTRING(value) (((ObjString *) AS_OBJ(value))->chars)
 
 typedef enum {
-    OBJ_STRING
-} lox_object_type;
+    OBJ_STRING,
+} ObjType;
 
-struct lox_object {
-    lox_object_type type;
-    struct lox_object *next_object;
+struct Obj {
+    ObjType type;
+    struct Obj *next;
 };
 
-struct lox_string {
-    lox_object object;
+struct ObjString {
+    Obj obj;
     int length;
-    char *characters;
+    char *chars;
     uint32_t hash;
 };
 
-lox_string *take_string(char *characters, int length);
-lox_string *copy_string(const char *characters, int length);
-void print_object(lox_value value);
+ObjString *takeString(char *chars, int length);
 
-static inline bool is_object_type(lox_value value, lox_object_type type) {
-    return IS_OBJECT(value) && AS_OBJECT(value)->type == type;
+ObjString *copyString(const char *chars, int length);
+
+void printObject(Value value);
+
+static inline bool isObjType(Value value, ObjType type) {
+    return IS_OBJ(value) && AS_OBJ(value)->type == type;
 }
 
 #endif
