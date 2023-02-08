@@ -429,9 +429,7 @@ do {                                                    \
                     runtimeError("Operand must be a number.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                if (AS_NUMBER(peek(0)) != 0) {
-                    push(NUMBER_VAL(-AS_NUMBER(pop())));
-                }
+                push(NUMBER_VAL(-AS_NUMBER(pop())));
                 break;
             case OP_PRINT: {
                 printValue(pop());
