@@ -146,7 +146,7 @@ static bool callValue(Value callee, int argCount) {
                 break;
         }
     }
-    runtimeError("Only functions and classes can be called.");
+    runtimeError("Can only call functions and classes.");
     return false;
 }
 
@@ -369,7 +369,7 @@ do {                                                    \
             }
             case OP_SET_PROPERTY: {
                 if (!IS_INSTANCE(peek(1))) {
-                    runtimeError("Only instances have properties.");
+                    runtimeError("Only instances have fields.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
 
